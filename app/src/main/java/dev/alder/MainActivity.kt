@@ -1078,7 +1078,7 @@ class MainActivity : Screen() {
             art.scaleX = 1f
             art.scaleY = 1f
             art.alpha = 0f
-            Images.load(url, art, artW, urgent = true, look = look, failed = ready) {
+            fun revealArt() {
                 // Once the new art covers it, the old one lets go: otherwise the GPU paints a hidden full screen every frame.
                 art.animate().alpha(1f).setDuration(if (artBack.drawable == null) 800 else 600).withEndAction {
                     artBack.setImageDrawable(null)
@@ -1086,6 +1086,16 @@ class MainActivity : Screen() {
                 }.start()
                 refrost()
                 ready?.invoke()
+            }
+            val posterFallback = item.poster?.takeIf { item.art != null && it != item.art }
+            Images.load(url, art, artW, urgent = true, look = look, failed = {
+                if (posterFallback != null) {
+                    Images.load(posterFallback, art, artW, urgent = true, look = look, failed = ready) {
+                        revealArt()
+                    }
+                } else ready?.invoke()
+            }) {
+                revealArt()
             }
         }
         if (Images.cached(url, artW, look) || ready != null) artTask.run() else main.postDelayed(artTask, 120)
