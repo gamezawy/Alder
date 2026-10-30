@@ -746,6 +746,11 @@ class MainActivity : Screen() {
         }.inNav(width = dp(44), height = -1)
         // A page opens as soon as the remote rests on its name. OK on Shows or Movies goes to its genres. Live shows only
         // once the profile's add-ons have a live catalog ([showLiveTab]).
+        nav.addView(text(getString(R.string.provider_stremio), SMALL, color = TUNGSTEN).apply {
+            gravity = Gravity.CENTER
+            setPadding(dp(8), dp(4), dp(2), dp(2))
+            isFocusable = false
+        }, LinearLayout.LayoutParams(-2, -1).apply { marginStart = dp(NAV_GAP) })
         Page.entries.forEach { p ->
             navItems[p] = text(p.words, BODY).apply {
                 gravity = Gravity.CENTER
