@@ -158,6 +158,7 @@
     <string name="player_rewind_10">−10 सेकंड</string>
     <string name="player_forward_10">+10 सेकंड</string>
     <string name="player_audio">ऑडियो</string>
+    <string name="player_speed">गति</string>
     <string name="player_aspect_ratio">आस्पेक्ट रेशियो</string>
     <string name="player_aspect_fit">फ़िट</string>
     <string name="player_aspect_fill">खिंचाव</string>
