@@ -419,6 +419,7 @@ class ProfilesActivity : Screen() {
      * capital), space, ⌫ and the system keyboard. [changed] gets the text after every edit.
      */
     private fun nameEntry(initial: String, changed: (String) -> Unit): Triple<EditText, View, View> {
+        val systemKeyboard = Settings.keyboardMode(this) == "system"
         val name = EditText(this).apply {
             hint = getString(R.string.profiles_your_name)
             textSize = BODY
@@ -428,14 +429,16 @@ class ProfilesActivity : Screen() {
             background = glass(8)
             setOnFocusChangeListener { v, has -> v.background = glass(8, has) }
             setSingleLine()
-            showSoftInputOnFocus = false
+            showSoftInputOnFocus = systemKeyboard
             imeOptions = EditorInfo.IME_ACTION_DONE
             setText(initial)
             setSelection(initial.length)
         }
         nameInput = name
         val keyboard = column(Gravity.START).apply {
-            setPadding(dp(8), dp(8), dp(8), dp(8)); background = glass(10)
+            setPadding(dp(8), dp(8), dp(8), dp(8))
+            background = glass(10)
+            visibility = if (systemKeyboard) View.GONE else View.VISIBLE
         }
         val keys = mutableListOf<TextView>()
         fun key(label: String, row: LinearLayout, width: Int = 1, action: () -> Unit) = text(label, SMALL, color = TEXT_2).apply {
@@ -448,23 +451,41 @@ class ProfilesActivity : Screen() {
             keys += this
         }
         var upper = false
+        var keyboardArabic = getSharedPreferences("settings", MODE_PRIVATE).getBoolean("searchKeyboardArabic", false)
+        val englishLetters = "abcdefghijklmnopqrstuvwxyz"
+        val arabicLetters = "ضصثقفغعهخحشسيبلاتنمئءؤرلاى"
         val letterKeys = mutableListOf<TextView>()
         fun caps(on: Boolean) {
             upper = on
-            letterKeys.forEach { it.text = if (on) it.text.toString().uppercase() else it.text.toString().lowercase() }
+            letterKeys.forEach { view ->
+                val value = view.text.toString()
+                view.text = if (on && !keyboardArabic) value.uppercase() else value.lowercase()
+            }
         }
         "abcdefghijklmnopqrstuvwxyz".chunked(6).forEach { letters ->
             keyboard.addView(LinearLayout(this).apply {
-                letters.forEach { letter -> letterKeys += key(letter.toString(), this) {
-                    val typed = if (upper) letter.uppercaseChar() else letter
-                    if (upper) caps(false)
-                    name.text.append(typed)
-                } }
-                // "yz" keeps the grid: empty cells fill the row instead of two keys stretched across it.
+                letters.forEach { _ ->
+                    val keyIndex = letterKeys.size
+                    letterKeys += key((if (keyboardArabic) arabicLetters else englishLetters)[keyIndex].toString(), this) {
+                        val displayed = letterKeys[keyIndex].text.toString()
+                        val typed = if (upper && !keyboardArabic) displayed.uppercase() else displayed
+                        if (upper) caps(false)
+                        name.text.append(typed)
+                    }
+                }
                 repeat(6 - letters.length) { addView(View(context), LinearLayout.LayoutParams(0, -1, 1f).apply { marginStart = dp(3) }) }
             }, LinearLayout.LayoutParams(-1, dp(KEY_H)).apply { if (keyboard.childCount > 0) topMargin = dp(3) })
         }
         keyboard.addView(LinearLayout(this).apply {
+            key(if (keyboardArabic) "EN" else "ع", this) {
+                keyboardArabic = !keyboardArabic
+                getSharedPreferences("settings", MODE_PRIVATE).edit().putBoolean("searchKeyboardArabic", keyboardArabic).apply()
+                letterKeys.forEachIndexed { index, view ->
+                    view.text = (if (keyboardArabic) arabicLetters else englishLetters)[index].toString()
+                }
+                caps(upper)
+                this@apply.getChildAt(0)?.let { (it as? TextView)?.text = if (keyboardArabic) "EN" else "ع" }
+            }
             key("⇧", this) { caps(!upper) }
             key(getString(R.string.search_space).uppercase(), this, 3) { name.text.append(" ") }
             key("⌫", this) { if (name.length() > 0) name.text.delete(name.length() - 1, name.length()) }
@@ -484,7 +505,11 @@ class ProfilesActivity : Screen() {
             }
             override fun afterTextChanged(s: android.text.Editable?) = Unit
         })
-        return Triple(name, keyboard, keys.first())
+        if (systemKeyboard) name.post {
+            (getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager)
+                .showSoftInput(name, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
+        }
+        return Triple(name, keyboard, if (systemKeyboard) name else keys.first())
     }
 
     /** Sign-in with a code: for a new profile called [name], or for [again], a profile Stremio signed out. */
