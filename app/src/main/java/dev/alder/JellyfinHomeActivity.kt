@@ -23,6 +23,14 @@ class JellyfinHomeActivity : Screen() {
 
     private enum class Page { HOME, LIBRARY }
 
+    @Deprecated("Android back callback")
+    override fun onBackPressed() {
+        if (selectedPage == Page.LIBRARY && selectedView != null) {
+            selectedView = null
+            loadLibrary()
+        } else super.onBackPressed()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (Profiles.active(this) == null) {
@@ -159,6 +167,13 @@ class JellyfinHomeActivity : Screen() {
             if (token != generation || isFinishing) return@background
             result.onSuccess { items ->
                 body.removeAllViews()
+                val back = text(getString(R.string.key_back), BODY, color = TUNGSTEN).apply {
+                    setPadding(dp(10), dp(10), dp(10), dp(10))
+                    isFocusable = true
+                    rowFocus(8)
+                    setOnClickListener { selectedView = null; loadLibrary() }
+                }
+                body.addView(back)
                 addSection(view.name, items)
                 body.getChildAt(0)?.requestFocus()
             }.onFailure { showOffline(getString(R.string.provider_jellyfin_offline)) }
