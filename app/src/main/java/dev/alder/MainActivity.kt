@@ -563,6 +563,7 @@ class MainActivity : Screen() {
             lastFeaturedHome = featured
             showPage(page)
         } else {
+            if (page == Page.HOME) renderHomeContinueRow(generation)
             refreshLibrary?.invoke()
             refreshAddons?.invoke()
             refreshJellyfinRows?.invoke()
