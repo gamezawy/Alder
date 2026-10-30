@@ -492,7 +492,7 @@ class SettingsActivity : Screen() {
                     Jellyfin.disconnect(this)
                     showGroup(Group.STREAMS)
                 }
-                actionRow(getString(R.string.iptv_settings), Iptv.playlistUrl(this).ifBlank { getString(R.string.not_configured) },
+                actionRow(getString(R.string.iptv_settings), Iptv.sourceSummary(this).ifBlank { getString(R.string.not_configured) },
                     getString(R.string.iptv_settings_hint), ::m3uDialog)
                 actionRow(getString(R.string.iptv_xtream), getString(R.string.iptv_xtream_hint),
                     getString(R.string.iptv_xtream_hint), ::xtreamDialog)
