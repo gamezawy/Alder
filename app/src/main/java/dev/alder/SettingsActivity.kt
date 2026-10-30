@@ -244,6 +244,7 @@ class SettingsActivity : Screen() {
     }
     private enum class Group(val words: Int, val icon: Int = 0, val glyph: String = "") {
         STREAMS(R.string.group_streams, R.drawable.ic_play),
+        SOURCES(R.string.group_sources, glyph = "◈"),
         PICTURE(R.string.group_picture, R.drawable.ic_tv),
         SUBTITLES(R.string.group_subtitles, R.drawable.ic_subtitles),
         ADDONS(R.string.group_addons, R.drawable.ic_layers),
@@ -470,6 +471,7 @@ class SettingsActivity : Screen() {
         addonValue = null
         hint.text = getString(when (group) {
             Group.STREAMS -> R.string.hint_streams
+            Group.SOURCES -> R.string.hint_sources
             Group.PICTURE -> R.string.hint_picture
             Group.SUBTITLES -> R.string.hint_subtitles
             Group.ADDONS -> R.string.hint_addons
@@ -482,20 +484,6 @@ class SettingsActivity : Screen() {
             Group.STREAMS -> {
                 presetRow()
                 streaming.forEach(::choiceRow)
-                choiceRow(Choice("sourcePriority", getString(R.string.source_priority), getString(R.string.source_priority_hint),
-                    listOf("jellyfin" to getString(R.string.jellyfin_first), "stremio" to getString(R.string.stremio_first))))
-                val jellyfinAccount = Jellyfin.account(this)
-                actionRow(getString(R.string.jellyfin_settings), jellyfinAccount?.username ?: getString(R.string.not_connected),
-                    getString(R.string.jellyfin_settings_hint), ::jellyfinDialog)
-                if (jellyfinAccount != null) actionRow(getString(R.string.jellyfin_disconnect), jellyfinAccount.serverUrl,
-                    getString(R.string.jellyfin_disconnect_hint)) {
-                    Jellyfin.disconnect(this)
-                    showGroup(Group.STREAMS)
-                }
-                actionRow(getString(R.string.iptv_settings), Iptv.playlistUrl(this).ifBlank { getString(R.string.not_configured) },
-                    getString(R.string.iptv_settings_hint), ::m3uDialog)
-                actionRow(getString(R.string.iptv_xtream), Iptv.xtreamServer(this).ifBlank { getString(R.string.not_configured) },
-                    getString(R.string.iptv_xtream_hint), ::xtreamDialog)
                 Profiles.active(this)?.let { me ->
                     lateinit var value: TextView
                     value = actionRow(getString(R.string.share_streams), if (Profiles.sharesStreams(this, me.id)) on else off,
@@ -516,6 +504,22 @@ class SettingsActivity : Screen() {
                 actionRow(getString(R.string.more_filters), "", getString(R.string.more_filters_hint)) {
                     choose(getString(R.string.more_filters), listOf(getString(R.string.action_ok)), getString(R.string.more_filters_desc)) {}
                 }
+            }
+            Group.SOURCES -> {
+                choiceRow(Choice("sourcePriority", getString(R.string.source_priority), getString(R.string.source_priority_hint),
+                    listOf("jellyfin" to getString(R.string.jellyfin_first), "stremio" to getString(R.string.stremio_first))))
+                val jellyfinAccount = Jellyfin.account(this)
+                actionRow(getString(R.string.jellyfin_settings), jellyfinAccount?.username ?: getString(R.string.not_connected),
+                    getString(R.string.jellyfin_settings_hint), ::jellyfinDialog)
+                if (jellyfinAccount != null) actionRow(getString(R.string.jellyfin_disconnect), jellyfinAccount.serverUrl,
+                    getString(R.string.jellyfin_disconnect_hint)) {
+                    Jellyfin.disconnect(this)
+                    showGroup(Group.SOURCES)
+                }
+                actionRow(getString(R.string.iptv_settings), Iptv.playlistUrl(this).ifBlank { getString(R.string.not_configured) },
+                    getString(R.string.iptv_settings_hint), ::m3uDialog)
+                actionRow(getString(R.string.iptv_xtream), Iptv.xtreamServer(this).ifBlank { getString(R.string.not_configured) },
+                    getString(R.string.iptv_xtream_hint), ::xtreamDialog)
             }
             Group.PICTURE -> {
                 pictureAndSound.forEach(::choiceRow)
