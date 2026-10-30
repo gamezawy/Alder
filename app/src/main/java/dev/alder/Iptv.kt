@@ -102,7 +102,7 @@ object Iptv {
 
     fun forgetProfile(context: Context, profileId: String) {
         prefs(context).edit().apply {
-            listOf("playlistUrl", "playlistType", "xtreamServer", "xtreamUsername", "xtreamPassword")
+            listOf("playlistUrl", "playlistType", "playlistFileUri", "playlistFileName", "xtreamServer", "xtreamUsername", "xtreamPassword")
                 .forEach { remove(it + "@" + profileId) }
         }.apply()
     }
