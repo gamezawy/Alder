@@ -31,7 +31,7 @@ object Jellyfin {
     fun account(context: Context): JellyfinAccount? {
         val p = prefs(context)
         val server = p.getString(key(context, "server"), null) ?: return null
-        val token = p.getString(key(context, "token"), null) ?: return null
+        val token = SecureStorage.decrypt(p.getString(key(context, "token"), null)) ?: return null
         val userId = p.getString(key(context, "userId"), null) ?: return null
         return JellyfinAccount(server, token, userId, p.getString(key(context, "username"), "").orEmpty())
     }
@@ -44,7 +44,7 @@ object Jellyfin {
 
     fun saveAccount(context: Context, account: JellyfinAccount) {
         prefs(context).edit().putString(key(context, "server"), normalizeServerUrl(account.serverUrl))
-            .putString(key(context, "token"), account.accessToken).putString(key(context, "userId"), account.userId)
+            .putString(key(context, "token"), SecureStorage.encrypt(account.accessToken)).putString(key(context, "userId"), account.userId)
             .putString(key(context, "username"), account.username).apply()
     }
 
