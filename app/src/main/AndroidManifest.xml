@@ -42,6 +42,7 @@
         <activity android:name=".JellyfinHomeActivity" android:screenOrientation="landscape" />
         <activity android:name=".IptvActivity" android:screenOrientation="landscape" />
         <activity android:name=".ProviderSearchActivity" android:screenOrientation="landscape" />
+        <activity android:name=".ProviderDetailsActivity" android:screenOrientation="landscape" />
         <activity android:name=".SearchActivity" android:screenOrientation="landscape" />
         <activity android:name=".SettingsActivity" android:screenOrientation="landscape" />
         <activity android:name=".AddonsActivity" android:screenOrientation="landscape" />
