@@ -143,6 +143,7 @@ internal fun logoTint(pixels: IntArray): Int? {
 class MainActivity : Screen() {
     /** [label] names a page in intents and saved answers; [words] is what the top bar shows. */
     private enum class Page(val label: String, val words: Int) {
+        JELLYFIN_HOME("JellyfinHome", R.string.tab_home), JELLYFIN_LIBRARY("JellyfinLibrary", R.string.provider_library),
         HOME("Home", R.string.tab_home), SHOWS("Shows", R.string.tab_shows), MOVIES("Movies", R.string.tab_movies),
         LIVE("Live", R.string.tab_live), LIBRARY("My List", R.string.tab_my_list)
     }
@@ -165,7 +166,8 @@ class MainActivity : Screen() {
     private var page = Page.HOME
     private val Page.isCatalog get() = this == Page.SHOWS || this == Page.MOVIES
     /** One row of cards under the focused title's art: every page but My List's grid. */
-    private val Page.isBrowse get() = this == Page.HOME || isCatalog || this == Page.LIVE
+    private val Page.isBrowse get() = this == Page.JELLYFIN_HOME || this == Page.JELLYFIN_LIBRARY || this == Page.HOME || isCatalog || this == Page.LIVE
+    private val Page.isJellyfin get() = this == Page.JELLYFIN_HOME || this == Page.JELLYFIN_LIBRARY
     private var mode = Mode.BROWSE
     private var library: List<JSONObject> = emptyList()
     // ponytail: row answers this session, including their catalogs; unbounded, but a few hundred titles per page.
@@ -299,6 +301,7 @@ class MainActivity : Screen() {
         val addedAt: String? = null,
         val finished: Boolean = false,
         var newEpisode: Boolean = false,
+        val providerItem: JellyfinItem? = null,
     ) {
         val live get() = isLiveType(type) // a channel or event: plays from its card, no title page
         var filled = false
@@ -432,10 +435,11 @@ class MainActivity : Screen() {
         }
         val initialPage = Page.entries.firstOrNull { it.label == intent.getStringExtra("page") }
             ?: when (Settings.startTab(this)) {
-                "movies" -> if (Settings.showMovies(this)) Page.MOVIES else Page.HOME
-                "shows" -> if (Settings.showShows(this)) Page.SHOWS else Page.HOME
-                "library" -> Page.LIBRARY
-                else -> Page.HOME
+                "stremio" -> Page.HOME
+                "movies" -> if (Settings.showMovies(this)) Page.MOVIES else Page.JELLYFIN_HOME
+                "shows" -> if (Settings.showShows(this)) Page.SHOWS else Page.JELLYFIN_HOME
+                "library" -> Page.JELLYFIN_LIBRARY
+                else -> Page.JELLYFIN_HOME
             }
         showPage(initialPage)
         main.postDelayed(::warmPages, WARM_AFTER)
@@ -744,15 +748,15 @@ class MainActivity : Screen() {
             setOnFocusChangeListener { _, _ -> styleNav() }
             setOnClickListener { startActivity(Intent(this@MainActivity, ProviderSearchActivity::class.java)) }
         }.inNav(width = dp(44), height = -1)
-        // A page opens as soon as the remote rests on its name. OK on Shows or Movies goes to its genres. Live shows only
-        // once the profile's add-ons have a live catalog ([showLiveTab]).
-        nav.addView(text(getString(R.string.provider_stremio), SMALL, color = TUNGSTEN).apply {
-            gravity = Gravity.CENTER
-            setPadding(dp(8), dp(4), dp(2), dp(2))
-            isFocusable = false
-        }, LinearLayout.LayoutParams(-2, -1).apply { marginStart = dp(NAV_GAP) })
-        Page.entries.forEach { p ->
-            navItems[p] = text(p.words, BODY).apply {
+        // One destination bar for both sources. Jellyfin is the default Home/Library; Stremio remains
+        // a clearly named section inside Alder rather than opening a second-looking home screen.
+        val navOrder = listOf(Page.JELLYFIN_HOME, Page.JELLYFIN_LIBRARY, Page.HOME, Page.SHOWS, Page.MOVIES, Page.LIVE, Page.LIBRARY)
+        navOrder.forEach { p ->
+            if (p == Page.HOME) {
+                nav.addView(View(this).apply { setBackgroundColor(GLASS_EDGE) },
+                    LinearLayout.LayoutParams(dp(1), dp(22)).apply { marginStart = dp(NAV_GAP); marginEnd = dp(2) })
+            }
+            navItems[p] = text(if (p == Page.HOME) R.string.provider_stremio else p.words, BODY).apply {
                 gravity = Gravity.CENTER
                 compoundDrawablePadding = dp(2)
                 setPadding(dp(12), dp(4), dp(12), dp(2))
@@ -775,11 +779,6 @@ class MainActivity : Screen() {
                 if (p == Page.SHOWS && !Settings.showShows(this@MainActivity)) visibility = View.GONE
             }.inNav()
         }
-        text(getString(R.string.provider_jellyfin_home), BODY).apply {
-            gravity = Gravity.CENTER
-            setPadding(dp(12), dp(4), dp(12), dp(2))
-            setOnClickListener { startActivity(Intent(this@MainActivity, JellyfinHomeActivity::class.java)) }
-        }.inNav()
         nav.background = glassOver(nav, NAV_R + 4)
         header.addView(avatarBox, FrameLayout.LayoutParams(dp(30), dp(30), Gravity.START or Gravity.CENTER_VERTICAL))
         header.addView(nav, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER))
@@ -795,6 +794,95 @@ class MainActivity : Screen() {
     }
 
     private var lastAddons: List<Addon> = emptyList()
+
+    /** Jellyfin pages use Alder's original cinematic rows and hero treatment, not a second home activity. */
+    private fun showJellyfinPage(p: Page, token: Int, opened: Long) {
+        if (Jellyfin.account(this) == null) {
+            content.addView(failed(getString(R.string.provider_jellyfin_not_connected)) {
+                startActivity(Intent(this, SettingsActivity::class.java))
+            }, LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(PAD) })
+            return
+        }
+        content.addView(text(getString(R.string.provider_connecting), SMALL, color = TEXT_3)
+            .apply { setPadding(dp(PAD), dp(8), dp(PAD), dp(8)) })
+        background({
+            if (p == Page.JELLYFIN_HOME) {
+                val resume = Jellyfin.resumeItems(applicationContext)
+                val recent = Jellyfin.views(applicationContext).mapNotNull { view ->
+                    runCatching { view to Jellyfin.latestItems(applicationContext, view.id, 18) }.getOrNull()
+                }
+                resume to recent
+            } else {
+                val libraries = Jellyfin.views(applicationContext).mapNotNull { view ->
+                    runCatching { view to Jellyfin.items(applicationContext, view.id, limit = START) }.getOrNull()
+                }
+                emptyList<JellyfinItem>() to libraries
+            }
+        }) { result ->
+            if (token != generation || page != p || isFinishing || isDestroyed) return@background
+            result.onSuccess { (resume, sections) ->
+                content.removeAllViews()
+                if (p == Page.JELLYFIN_HOME && resume.isNotEmpty()) {
+                    val items = resume.map(::jellyfinHomeItem)
+                    val slot = slot()
+                    slot.addView(row(getString(R.string.provider_continue_watching), items.take(START), later(items), wide = true).view)
+                }
+                sections.forEach { (view, sourceItems) ->
+                    if (sourceItems.isEmpty()) return@forEach
+                    val items = sourceItems.map(::jellyfinHomeItem)
+                    val slot = slot()
+                    val more: ((Int) -> List<Item>)? = if (p == Page.JELLYFIN_LIBRARY) { from ->
+                        Jellyfin.items(applicationContext, view.id, limit = PAGE, startIndex = from).map(::jellyfinHomeItem)
+                    } else later(items)
+                    val title = if (p == Page.JELLYFIN_HOME) getString(R.string.provider_recently_added, view.name) else view.name
+                    slot.addView(row(title, items.take(START), more).view)
+                }
+                if (rows.none { it.view.parent != null }) {
+                    content.addView(text(getString(R.string.provider_no_items), BODY, color = TEXT_2)
+                        .apply { setPadding(dp(PAD), dp(12), dp(PAD), dp(12)) })
+                }
+                android.util.Log.d("Alder", "Jellyfin " + p.label + ": first rows in " +
+                    (android.os.SystemClock.uptimeMillis() - opened) + " ms")
+                main.post(::updateImages)
+            }.onFailure { error ->
+                content.removeAllViews()
+                val panel = failed(getString(R.string.provider_jellyfin_offline) + "\n" + (error.message ?: "")) {
+                    showPage(p)
+                }
+                content.addView(panel, LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(PAD) })
+            }
+        }
+    }
+
+    private fun jellyfinHomeItem(source: JellyfinItem): Item {
+        val episode = source.type.equals("Episode", true)
+        val type = when (source.type.lowercase(Locale.ROOT)) {
+            "movie" -> "movie"
+            "series" -> "series"
+            "episode" -> "episode"
+            else -> source.type.lowercase(Locale.ROOT)
+        }
+        val poster = Jellyfin.imageUrl(this, source.id, source.imageTag, 720)
+        val duration = source.runTimeTicks ?: 0L
+        val progress = if (duration > 0L) (source.playbackPositionTicks.toFloat() / duration).coerceIn(0f, 1f) else 0f
+        val remainingMinutes = if (duration > 0L && source.playbackPositionTicks > 0L)
+            ((duration - source.playbackPositionTicks).coerceAtLeast(0L) / 600_000_000L).toInt() else 0
+        val timeLeft = if (remainingMinutes > 0) {
+            if (remainingMinutes >= 60) getString(R.string.time_left_hours, remainingMinutes / 60, remainingMinutes % 60)
+            else getString(R.string.time_left_minutes, remainingMinutes)
+        } else null
+        val episodeLabel = if (episode) listOfNotNull(source.seasonNumber?.let { "S$it" }, source.episodeNumber?.let { "E$it" }).joinToString(" ") else null
+        val displayName = if (episode) source.seriesName ?: source.name else source.name
+        return Item(
+            source.id, type, displayName, poster, poster, null, source.overview,
+            listOfNotNull(source.year?.toString(), source.officialRating, source.genres.take(2).joinToString(", ").ifBlank { null }),
+            null, progress, resume = progress > 0f, left = listOfNotNull(episodeLabel, timeLeft).joinToString(DOT).ifBlank { null },
+            timeLeft = timeLeft, stoppedAt = source.playbackPositionTicks / 10_000L, finished = source.played,
+            providerItem = source
+        ).also { it.filled = true; it.settled = true }
+    }
+
+
 
     /** Live in the top bar only for a profile whose add-ons list channels, sport or events, and if allowed in Settings. */
     private fun showLiveTab(addons: List<Addon>) {
@@ -839,7 +927,7 @@ class MainActivity : Screen() {
             val focused = item.isFocused
             item.background = if (focused) glass(NAV_R, true) else null
             item.setTextColor(if (p == page || focused) TEXT else TEXT_2)
-            item.text = getString(p.words)
+            item.text = getString(if (p == Page.HOME) R.string.provider_stremio else p.words)
             // The open page's dot hangs under its name; the others keep an empty one, so every name sits on one line.
             item.setCompoundDrawablesRelative(null, null, null, GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
@@ -1229,7 +1317,7 @@ class MainActivity : Screen() {
         nextRowHint.visibility = View.GONE
         moreHint.alpha = 0f
         lastHiddenRows = Settings.hiddenRows(this)
-        if (p == Page.HOME) { lastFeaturedHome = Settings.featuredHome(this); cinema = emptyList() } // other pages keep Home's, so the screensaver works there too
+        if (p == Page.HOME || p == Page.JELLYFIN_HOME) { lastFeaturedHome = Settings.featuredHome(this); cinema = emptyList() } // other pages keep Home's, so the screensaver works there too
         focusedSomething = false
         // The last page's title goes with it; an empty page (no library yet, no catalogs) shows none.
         heroItem = null
@@ -1242,6 +1330,10 @@ class MainActivity : Screen() {
         scroller.alpha = 1f
         stage.isFocusable = false
         chrome()
+        if (p.isJellyfin) {
+            showJellyfinPage(p, g, opened)
+            return
+        }
         val key = profile.authKey
 
         // Nothing at all came back (no network, Stremio down): say so once, with a retry, instead of a blank page.
@@ -2051,7 +2143,8 @@ class MainActivity : Screen() {
                 }
                 // A channel has no title page to show: OK plays it, and holding OK lists its sources.
                 setOnClickListener { if (item.live) play(item) else openDetails(item) }
-                if (grid) setOnLongClickListener { listMenu(item); true }
+                if (item.providerItem != null) setOnLongClickListener { openDetails(item); true }
+                else if (grid) setOnLongClickListener { listMenu(item); true }
                 else if (item.resume) setOnLongClickListener { continueMenu(item); true }
                 else setOnLongClickListener { rowMenu(this@Row, item); true }
             }
@@ -2132,6 +2225,11 @@ class MainActivity : Screen() {
     /** Art, logo and facts the catalog didn't send, fetched once per title from the meta addon. */
     private fun fill(item: Item) {
         if (item.filled) return
+        if (item.providerItem != null) {
+            item.filled = true
+            item.settled = true
+            return
+        }
         item.filled = true
         metas[item.id]?.let { applyMeta(item, it); return }
         val key = profile.authKey
@@ -2215,6 +2313,17 @@ class MainActivity : Screen() {
 
     /** Resume: straight to the sources for the episode Continue Watching points at; with [pick] (held OK) they're all listed. */
     private fun play(item: Item, pick: Boolean = false) {
+        item.providerItem?.let { provider ->
+            if (provider.type.equals("Series", true)) { openDetails(item); return }
+            val episode = provider.type.equals("Episode", true)
+            startActivity(Intent(this, ProviderPlayerActivity::class.java)
+                .putExtra("jellyfinItemId", provider.id)
+                .putExtra("title", provider.seriesName ?: item.name)
+                .putExtra("episodeTitle", if (episode) listOfNotNull(provider.seasonNumber?.let { "S%02d".format(it) }, provider.episodeNumber?.let { "E%02d".format(it) }, provider.name).joinToString("  ·  ") else "")
+                .putExtra("seriesId", provider.seriesId)
+                .putExtra("resumeAtMs", provider.playbackPositionTicks / 10_000L))
+            return
+        }
         if (resolvingStreams != null) return
         val videoId = item.videoId ?: item.id
         val videos = metas[item.id]?.videos.orEmpty()
@@ -2240,6 +2349,10 @@ class MainActivity : Screen() {
     }
 
     private fun openDetails(item: Item) {
+        item.providerItem?.let { provider ->
+            startActivity(Intent(this, ProviderDetailsActivity::class.java).putExtra("jellyfinItemId", provider.id))
+            return
+        }
         startActivity(Intent(this, DetailsActivity::class.java)
             .putExtra("type", item.type).putExtra("id", item.id).putExtra("name", item.name)
             .putExtra("poster", item.poster).putExtra("background", item.art).putExtra("videoId", item.videoId))

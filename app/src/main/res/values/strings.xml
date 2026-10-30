@@ -528,6 +528,7 @@
     <string name="provider_retry">Retry</string>
     <string name="provider_offline_navigation">You can still open Stremio or Live TV from the navigation above.</string>
     <string name="provider_continue_watching">Continue Watching</string>
+    <string name="provider_recently_added">Recently added · %1$s</string>
     <string name="provider_episodes">Episodes</string>
     <string name="provider_loading_episodes">Loading episodes…</string>
     <string name="provider_no_episodes">No playable episodes were found.</string>
