@@ -19,12 +19,12 @@ internal object JellyfinAuth {
             .digest(username.trim().lowercase().toByteArray(Charsets.UTF_8))
             .take(8).joinToString("") { "%02x".format(it) }
         val deviceId = "alder-android-tv-$deviceHash"
-        val value = "MediaBrowser Client=\\\"Alder\\\", Device=\\\"Android TV\\\", DeviceId=\\\"$deviceId\\\", Version=\\\"1\\\""
+        val value = "MediaBrowser Client=\"Alder\", Device=\"Android TV\", DeviceId=\"$deviceId\", Version=\"1\""
         return if (modern) mapOf("Authorization" to value) else mapOf("X-Emby-Authorization" to value)
     }
 
     fun tokenHeaders(token: String, modern: Boolean): Map<String, String> =
-        if (modern) mapOf("Authorization" to "MediaBrowser Token=\\\"$token\\\"")
+        if (modern) mapOf("Authorization" to "MediaBrowser Token=\"$token\"")
         else mapOf("X-Emby-Token" to token)
 
     fun apiKeyParameter(modern: Boolean): String = if (modern) "ApiKey" else "api_key"
