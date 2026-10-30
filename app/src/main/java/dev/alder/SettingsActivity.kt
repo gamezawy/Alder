@@ -892,7 +892,7 @@ class SettingsActivity : Screen() {
 
     private companion object {
         /** The languages Alder has words for, besides English; res/xml/locales_config.xml lists the same. */
-        val APP_LANGUAGES = listOf("en", "es", "pt-BR", "fr", "de", "it", "hi")
+        val APP_LANGUAGES = listOf("en", "ar", "es", "pt-BR", "fr", "de", "it", "hi")
         val PRESETS = listOf(
             R.string.preset_addon_order to mapOf("release" to "", "hdrPref" to "", "maxHeight" to 0, "maxSizeGb" to 0),
             R.string.preset_best_picture to mapOf("release" to "remux", "hdrPref" to "dv", "maxHeight" to 0, "maxSizeGb" to 0),
