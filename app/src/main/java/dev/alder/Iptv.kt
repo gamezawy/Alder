@@ -28,7 +28,7 @@ object Iptv {
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
     private fun key(context: Context, name: String) = name + "@" + (Profiles.active(context)?.id ?: "none")
 
-    fun playlistUrl(context: Context) = prefs(context).getString(key(context, "playlistUrl"), "").orEmpty()
+    fun playlistUrl(context: Context) = SecureStorage.decrypt(prefs(context).getString(key(context, "playlistUrl"), null)).orEmpty()
     fun xtreamServer(context: Context) = prefs(context).getString(key(context, "xtreamServer"), "").orEmpty()
     fun sourceSummary(context: Context): String {
         val p = prefs(context)
@@ -38,9 +38,14 @@ object Iptv {
     }
 
     fun setPlaylistUrl(context: Context, value: String) =
-        prefs(context).edit().putString(key(context, "playlistUrl"), value.trim())
-            .putString(key(context, "playlistType"), "m3u").remove(key(context, "xtreamServer"))
-            .remove(key(context, "xtreamUsername")).remove(key(context, "xtreamPassword")).apply()
+        prefs(context).edit().apply {
+            val url = value.trim()
+            if (url.isBlank()) remove(key(context, "playlistUrl")) else putString(key(context, "playlistUrl"), SecureStorage.encrypt(url))
+            putString(key(context, "playlistType"), "m3u")
+            remove(key(context, "xtreamServer"))
+            remove(key(context, "xtreamUsername"))
+            remove(key(context, "xtreamPassword"))
+        }.apply()
 
     fun setXtream(context: Context, server: String, username: String, password: String) {
         require(username.isNotBlank() && password.isNotBlank()) { "Enter your Xtream username and password." }
