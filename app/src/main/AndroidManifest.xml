@@ -43,6 +43,7 @@
         <activity android:name=".AddonsActivity" android:screenOrientation="landscape" />
         <activity android:name=".DetailsActivity" android:screenOrientation="landscape" />
         <activity android:name=".StreamsActivity" android:screenOrientation="landscape" />
+        <activity android:name=".ProviderPlayerActivity" android:screenOrientation="landscape" />
         <activity
             android:name=".PlayerActivity"
             android:screenOrientation="landscape"
