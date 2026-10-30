@@ -762,13 +762,19 @@ class SearchActivity : Screen() {
         focused = null
         focusedProvider = item
         hero.visibility = View.VISIBLE
-        val url = Jellyfin.backdropUrl(this, item.id, 1800) ?: Jellyfin.imageUrl(this, item.id, item.imageTag, 1200)
+        val backdropUrl = Jellyfin.backdropUrl(this, item.id, 1800)
+        val posterUrl = Jellyfin.imageUrl(this, item.id, item.imageTag, 1200)
+        val url = backdropUrl ?: posterUrl
         if (url != null && url != art.tag) {
             art.animate().cancel()
             if (art.drawable != null) artBack.setImageDrawable(art.drawable)
             art.alpha = 0f
             Images.load(url, art, resources.displayMetrics.widthPixels, urgent = true, failed = {
-                if (focusedProvider === item) {
+                if (focusedProvider === item && url == backdropUrl && posterUrl != null) {
+                    Images.load(posterUrl, art, resources.displayMetrics.widthPixels, urgent = true) {
+                        if (focusedProvider === item) { art.animate().alpha(1f).setDuration(300).start(); refrost() }
+                    }
+                } else if (focusedProvider === item) {
                     art.setImageDrawable(artBack.drawable)
                     art.alpha = 1f
                     refrost()
