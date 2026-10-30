@@ -164,6 +164,28 @@ object Jellyfin {
         return JellyfinPlayback(itemId, sourceId, session, stream, direct)
     }
 
+    fun reportStarted(context: Context, itemId: String, mediaSourceId: String?, directPlay: Boolean) {
+        val account = account(context) ?: return
+        val body = JSONObject().put("ItemId", itemId).put("MediaSourceId", mediaSourceId ?: "")
+            .put("PlayMethod", if (directPlay) "DirectPlay" else "Transcode")
+        Http.post(account.serverUrl + "/Sessions/Playing", body.toString(),
+            headers = mapOf("X-Emby-Token" to account.accessToken, "Accept" to "application/json"))
+    }
+
+    fun reportPlayback(context: Context, itemId: String, positionTicks: Long, paused: Boolean = false) {
+        val account = account(context) ?: return
+        val body = JSONObject().put("ItemId", itemId).put("PositionTicks", positionTicks).put("IsPaused", paused)
+        Http.post(account.serverUrl + "/Sessions/Playing/Progress", body.toString(),
+            headers = mapOf("X-Emby-Token" to account.accessToken, "Accept" to "application/json"))
+    }
+
+    fun reportStopped(context: Context, itemId: String, positionTicks: Long) {
+        val account = account(context) ?: return
+        val body = JSONObject().put("ItemId", itemId).put("PositionTicks", positionTicks)
+        Http.post(account.serverUrl + "/Sessions/Playing/Stopped", body.toString(),
+            headers = mapOf("X-Emby-Token" to account.accessToken, "Accept" to "application/json"))
+    }
+
     fun imageUrl(context: Context, itemId: String, tag: String?, maxWidth: Int = 600): String? {
         val account = account(context) ?: return null
         if (tag.isNullOrBlank()) return null
