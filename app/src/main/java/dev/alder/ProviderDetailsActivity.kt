@@ -116,14 +116,15 @@ class ProviderDetailsActivity : Screen() {
         }
         buttons.addView(playAction, wrap().apply { marginEnd = dp(10) })
         if (loaded.type.equals("Series", true)) {
-            episodesAction = pill(R.string.provider_episodes).apply {
+            val episodeButton = pill(R.string.provider_episodes).apply {
                 setOnClickListener {
                     if (::guide.isInitialized) showGuide()
                     else android.widget.Toast.makeText(this@ProviderDetailsActivity,
                         getString(R.string.provider_loading_episodes), android.widget.Toast.LENGTH_SHORT).show()
                 }
             }
-            buttons.addView(episodesAction, wrap().apply { marginEnd = dp(10) })
+            episodesAction = episodeButton
+            buttons.addView(episodeButton, wrap().apply { marginEnd = dp(10) })
         }
         buttons.addView(pill(R.string.watch_status_title).apply {
             setOnClickListener { chooseStatus(loaded) }
