@@ -140,8 +140,7 @@ object Jellyfin {
 
     fun playback(context: Context, itemId: String): JellyfinPlayback {
         val account = account(context) ?: throw JellyfinException("Jellyfin is not connected.")
-        val profile = JSONObject().put("Name", "Alder Media3").put("MaxStreamingBitrate", 120_000_000)
-        val body = JSONObject().put("UserId", account.userId).put("DeviceProfile", profile).toString()
+        val body = JSONObject().put("UserId", account.userId).toString()
         val response = JSONObject(Http.post(account.serverUrl + "/Items/" + encode(itemId) + "/PlaybackInfo",
             body, headers = mapOf("X-Emby-Token" to account.accessToken, "Accept" to "application/json")))
         val sources = response.optJSONArray("MediaSources") ?: JSONArray()
@@ -153,10 +152,11 @@ object Jellyfin {
         val transcodePath = source.optString("TranscodingUrl").takeIf { it.isNotBlank() }
             ?: response.optString("TranscodingUrl").takeIf { it.isNotBlank() }
         val stream = if (!direct && transcodePath != null) {
-            if (transcodePath.startsWith("http", true)) transcodePath
-            else account.serverUrl + "/" + transcodePath.trimStart('/')
+            val url = if (transcodePath.startsWith("http", true)) transcodePath
+                else account.serverUrl + "/" + transcodePath.trimStart('/')
+            if (url.contains("api_key=", true)) url else url + (if ("?" in url) "&" else "?") + "api_key=" + encode(account.accessToken)
         } else buildString {
-            append(account.serverUrl).append("/Videos/").append(encode(itemId)).append("/stream?Static=true")
+            append(account.serverUrl).append("/Videos/").append(encode(itemId)).append("/stream?Static=").append(direct)
             if (sourceId != null) append("&MediaSourceId=").append(encode(sourceId))
             if (session != null) append("&PlaySessionId=").append(encode(session))
             append("&api_key=").append(encode(account.accessToken))
