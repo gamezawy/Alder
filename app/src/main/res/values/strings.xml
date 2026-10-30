@@ -561,4 +561,6 @@
     <string name="watch_status_dropped">Dropped</string>
     <string name="watch_status_watched">Watched</string>
     <string name="iptv_favorites">Favorites</string>
+    <string name="group_sources">Sources</string>
+    <string name="hint_sources">Connect Jellyfin and live TV providers, and choose which provider should take priority.</string>
 </resources>
