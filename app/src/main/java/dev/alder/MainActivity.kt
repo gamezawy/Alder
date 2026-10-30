@@ -939,7 +939,7 @@ class MainActivity : Screen() {
                         .filter {
                             it.type.equals("Movie", true) || it.type.equals("Series", true) || it.type.equals("Episode", true)
                         }
-                        .distinctBy { (it.seriesName?.takeIf(String::isNotBlank) ?: it.name).lowercase(Locale.ROOT) }
+                        .distinctBy { (it.seriesName?.takeIf { series -> series.isNotBlank() } ?: it.name).lowercase(Locale.ROOT) }
                     if (latest.isNotEmpty()) add(JellyfinShelf(
                         getString(R.string.provider_recently_added, view.name), latest
                     ))
