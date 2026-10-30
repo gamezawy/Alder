@@ -190,7 +190,7 @@ object Jellyfin {
         val account = account(context) ?: return null
         if (tag.isNullOrBlank()) return null
         return account.serverUrl + "/Items/" + encode(itemId) + "/Images/Primary?tag=" + encode(tag) +
-            "&maxWidth=" + maxWidth.coerceIn(100, 2000)
+            "&maxWidth=" + maxWidth.coerceIn(100, 2000) + "&api_key=" + encode(account.accessToken)
     }
 
     private fun encode(value: String) = URLEncoder.encode(value, Charsets.UTF_8.name())
