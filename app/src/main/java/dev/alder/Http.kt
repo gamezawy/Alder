@@ -35,7 +35,7 @@ object Http {
         val (code, body) = request(url, json, cache = false, timeoutMs, headers)
         val text = String(body, Charsets.UTF_8)
         // Stremio's API answers errors as JSON (read by the caller); anything else failed is an error page: say the code.
-        if (code >= 400 && (strict || !text.trimStart().startsWith("{"))) throw HttpError(code)
+        if (code >= 400 && (strict || !text.trimStart().startsWith("{"))) throw HttpError(code, text.take(1000))
         return text.also { if (keep && code < 400) keep(url, json, it) }
     }
 
@@ -101,4 +101,6 @@ object Http {
 }
 
 /** A failed answer, with its status code: 401 and 403 from an add-on usually mean an expired key or account. */
-class HttpError(val code: Int) : IOException("HTTP $code")
+class HttpError(val code: Int, val responseBody: String? = null) : IOException(
+    "HTTP $code" + responseBody.orEmpty().takeIf { it.isNotBlank() }?.let { ": ${it.take(300)}" }.orEmpty()
+)
