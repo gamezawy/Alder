@@ -28,7 +28,7 @@ internal fun mergeProviderSearchHits(
 ): List<ProviderSearchHit> {
     val all = jellyfin.map {
         ProviderSearchHit("jellyfin", it.name, listOfNotNull(it.year?.toString(), it.type).joinToString(" · "),
-            normalizeSearchTitle(it.name) + "|" + it.year.orEmpty() + "|" + it.type.lowercase(Locale.ROOT), jellyfin = it)
+            normalizeSearchTitle(it.name) + "|" + it.year?.toString().orEmpty() + "|" + it.type.lowercase(Locale.ROOT), jellyfin = it)
     } + stremio.map {
         ProviderSearchHit("stremio", it.name, listOfNotNull(it.year, it.type).joinToString(" · "),
             normalizeSearchTitle(it.name) + "|" + it.year.orEmpty().take(4) + "|" + it.type.lowercase(Locale.ROOT), stremio = it)
