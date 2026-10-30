@@ -9,6 +9,7 @@ import java.net.DatagramSocket
 import java.net.InetAddress
 import java.net.NetworkInterface
 import java.net.SocketTimeoutException
+import java.util.concurrent.ConcurrentHashMap
 
 data class JellyfinServer(val address: String, val name: String, val id: String)
 data class JellyfinAccount(val serverUrl: String, val accessToken: String, val userId: String, val username: String, val useModernAuthorization: Boolean = true)
@@ -17,7 +18,9 @@ data class JellyfinItem(
     val imageTag: String?, val year: Int?, val runTimeTicks: Long?,
     val played: Boolean, val playbackPositionTicks: Long,
     val genres: List<String> = emptyList(), val tagline: String? = null,
-    val communityRating: Double? = null, val officialRating: String? = null
+    val communityRating: Double? = null, val officialRating: String? = null,
+    val seasonNumber: Int? = null, val episodeNumber: Int? = null,
+    val seriesName: String? = null, val seriesId: String? = null
 )
 data class JellyfinPlayback(val itemId: String, val mediaSourceId: String?, val playSessionId: String?, val streamUrl: String, val directPlay: Boolean)
 class JellyfinException(message: String, val statusCode: Int? = null) : java.io.IOException(message)
@@ -31,6 +34,9 @@ object Jellyfin {
     private const val CLIENT_NAME = "Alder"
     private const val DEVICE_NAME = "Android TV"
     private const val DEVICE_ID = "alder-android-tv"
+
+    private data class CachedResponse(val body: String, val expiresAt: Long)
+    private val responseCache = ConcurrentHashMap<String, CachedResponse>()
 
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
     private fun key(context: Context, name: String) = name + "@" + (Profiles.active(context)?.id ?: "none")
@@ -165,6 +171,29 @@ object Jellyfin {
                 ("Accept" to "application/json"))
     }
 
+    /**
+     * Short-lived response cache for read-only library calls. It lets Home render immediately when the viewer
+     * returns from details or playback, while the next expiry quietly refreshes the data in the background.
+     */
+    private fun cachedRequest(context: Context, path: String, query: Map<String, String> = emptyMap(), ttlMs: Long): String {
+        val account = account(context) ?: throw JellyfinException("Jellyfin is not connected.")
+        val profileId = Profiles.active(context)?.id ?: "none"
+        val queryKey = query.toSortedMap().entries.joinToString("&") { encode(it.key) + "=" + encode(it.value) }
+        val key = profileId + "|" + account.serverUrl + "|" + account.userId + "|" + path + "|" + queryKey
+        val now = android.os.SystemClock.elapsedRealtime()
+        responseCache[key]?.takeIf { it.expiresAt > now }?.let { return it.body }
+        val body = request(context, path, query)
+        responseCache[key] = CachedResponse(body, now + ttlMs.coerceAtLeast(1_000))
+        if (responseCache.size > 256) responseCache.entries.removeIf { it.value.expiresAt <= now }
+        return body
+    }
+
+    /** Invalidate this profile's read cache after a playback session changes its resume state. */
+    fun invalidateCache(context: Context) {
+        val profileId = Profiles.active(context)?.id ?: "none"
+        responseCache.keys.removeIf { it.startsWith(profileId + "|") }
+    }
+
     fun items(context: Context, parentId: String? = null, includeTypes: List<String> = listOf("Movie", "Series"),
               limit: Int = 100, startIndex: Int = 0): List<JellyfinItem> {
         val account = account(context) ?: return emptyList()
@@ -173,38 +202,38 @@ object Jellyfin {
             "SortOrder" to "Descending", "Fields" to "Overview,DateCreated,RunTimeTicks,UserData,ProductionYear,ImageTags",
             "Limit" to limit.coerceIn(1, 200).toString(), "StartIndex" to startIndex.coerceAtLeast(0).toString())
         if (!parentId.isNullOrBlank()) query["ParentId"] = parentId
-        return JSONObject(request(context, "/Users/" + encode(account.userId) + "/Items", query))
+        return JSONObject(cachedRequest(context, "/Users/" + encode(account.userId) + "/Items", query, 30_000L))
             .optJSONArray("Items").toItems()
     }
 
     fun item(context: Context, itemId: String): JellyfinItem {
         val account = account(context) ?: throw JellyfinException("Jellyfin is not connected.")
-        val response = JSONObject(request(context, "/Users/" + encode(account.userId) + "/Items/" + encode(itemId),
-            mapOf("Fields" to "Overview,Genres,People,RunTimeTicks,UserData,ProductionYear,ImageTags,Taglines,CommunityRating,OfficialRating")))
+        val response = JSONObject(cachedRequest(context, "/Users/" + encode(account.userId) + "/Items/" + encode(itemId),
+            mapOf("Fields" to "Overview,Genres,People,RunTimeTicks,UserData,ProductionYear,ImageTags,Taglines,CommunityRating,OfficialRating,IndexNumber,ParentIndexNumber,SeriesName,SeriesId"), 120_000L))
         return response.toItem() ?: throw JellyfinException("Jellyfin returned an invalid item.")
     }
 
     fun search(context: Context, query: String, limit: Int = 30): List<JellyfinItem> {
         val account = account(context) ?: return emptyList()
         if (query.isBlank()) return emptyList()
-        val response = JSONObject(request(context, "/Users/" + encode(account.userId) + "/Items",
+        val response = JSONObject(cachedRequest(context, "/Users/" + encode(account.userId) + "/Items",
             mapOf("UserId" to account.userId, "SearchTerm" to query, "Recursive" to "true",
                 "IncludeItemTypes" to "Movie,Series,Episode", "Limit" to limit.coerceIn(1, 100).toString(),
-                "Fields" to "Overview,RunTimeTicks,UserData,ProductionYear,ImageTags")))
+                "Fields" to "Overview,RunTimeTicks,UserData,ProductionYear,ImageTags,IndexNumber,ParentIndexNumber,SeriesName,SeriesId"), 15_000L))
         return response.optJSONArray("Items").toItems()
     }
 
     fun views(context: Context): List<JellyfinItem> {
         val account = account(context) ?: return emptyList()
-        return JSONObject(request(context, "/Users/" + encode(account.userId) + "/Views"))
+        return JSONObject(cachedRequest(context, "/Users/" + encode(account.userId) + "/Views", ttlMs = 300_000L))
             .optJSONArray("Items").toItems()
     }
 
     fun resumeItems(context: Context, limit: Int = 20): List<JellyfinItem> {
         val account = account(context) ?: return emptyList()
-        return JSONObject(request(context, "/Users/" + encode(account.userId) + "/Items/Resume",
+        return JSONObject(cachedRequest(context, "/Users/" + encode(account.userId) + "/Items/Resume",
             mapOf("UserId" to account.userId, "Limit" to limit.coerceIn(1, 100).toString(),
-                "Fields" to "Overview,RunTimeTicks,UserData,ProductionYear,ImageTags")))
+                "Fields" to "Overview,RunTimeTicks,UserData,ProductionYear,ImageTags,IndexNumber,ParentIndexNumber,SeriesName,SeriesId"), 20_000L))
             .optJSONArray("Items").toItems()
     }
 
@@ -212,17 +241,28 @@ object Jellyfin {
         val account = account(context) ?: return emptyList()
         if (ids.isEmpty()) return emptyList()
         return ids.toList().chunked(50).flatMap { batch ->
-            val response = JSONObject(request(context, "/Users/" + encode(account.userId) + "/Items",
-                mapOf("Ids" to batch.joinToString(","), "Fields" to "Overview,RunTimeTicks,UserData,ProductionYear,ImageTags")))
+            val response = JSONObject(cachedRequest(context, "/Users/" + encode(account.userId) + "/Items",
+                mapOf("Ids" to batch.joinToString(","), "Fields" to "Overview,RunTimeTicks,UserData,ProductionYear,ImageTags,IndexNumber,ParentIndexNumber,SeriesName,SeriesId"), 30_000L))
             response.optJSONArray("Items").toItems()
         }
     }
 
     fun latestItems(context: Context, parentId: String, limit: Int = 20): List<JellyfinItem> {
         val account = account(context) ?: return emptyList()
-        return JSONArray(request(context, "/Users/" + encode(account.userId) + "/Items/Latest",
+        return JSONArray(cachedRequest(context, "/Users/" + encode(account.userId) + "/Items/Latest",
             mapOf("ParentId" to parentId, "Limit" to limit.coerceIn(1, 100).toString(),
-                "Fields" to "Overview,RunTimeTicks,UserData,ProductionYear,ImageTags"))).toItems()
+                "Fields" to "Overview,RunTimeTicks,UserData,ProductionYear,ImageTags,IndexNumber,ParentIndexNumber,SeriesName,SeriesId"), 60_000L)).toItems()
+    }
+
+    /** All episodes in a series, ordered by season and episode number for a normal TV browsing flow. */
+    fun episodes(context: Context, seriesId: String, limit: Int = 500): List<JellyfinItem> {
+        val account = account(context) ?: return emptyList()
+        val query = mapOf("UserId" to account.userId,
+            "Fields" to "Overview,RunTimeTicks,UserData,ProductionYear,ImageTags,IndexNumber,ParentIndexNumber,SeriesName,SeriesId",
+            "SortBy" to "ParentIndexNumber,IndexNumber", "SortOrder" to "Ascending",
+            "Limit" to limit.coerceIn(1, 1_000).toString())
+        return JSONObject(cachedRequest(context, "/Shows/" + encode(seriesId) + "/Episodes", query, 60_000L))
+            .optJSONArray("Items").toItems()
     }
 
     fun playback(context: Context, itemId: String): JellyfinPlayback {
@@ -255,6 +295,7 @@ object Jellyfin {
     }
 
     fun reportStarted(context: Context, itemId: String, mediaSourceId: String?, playSessionId: String?, directPlay: Boolean) {
+        invalidateCache(context)
         val account = account(context) ?: return
         val body = JSONObject().put("ItemId", itemId).put("PlayMethod", if (directPlay) "DirectPlay" else "Transcode")
             .put("CanSeek", true).put("IsPaused", false).put("PositionTicks", 0)
@@ -281,6 +322,7 @@ object Jellyfin {
         Http.post(account.serverUrl + "/Sessions/Playing/Stopped", body.toString(),
             headers = JellyfinAuth.tokenHeaders(account.accessToken, account.useModernAuthorization) +
                 ("Accept" to "application/json"))
+        invalidateCache(context)
     }
     fun imageUrl(context: Context, itemId: String, tag: String?, maxWidth: Int = 600): String? {
         val account = account(context) ?: return null
@@ -331,7 +373,11 @@ object Jellyfin {
             },
             tagline = tagline,
             communityRating = optDouble("CommunityRating").takeIf { it > 0.0 },
-            officialRating = optString("OfficialRating").takeIf { it.isNotBlank() }
+            officialRating = optString("OfficialRating").takeIf { it.isNotBlank() },
+            seasonNumber = optInt("ParentIndexNumber").takeIf { it > 0 },
+            episodeNumber = optInt("IndexNumber").takeIf { it > 0 },
+            seriesName = optString("SeriesName").takeIf { it.isNotBlank() },
+            seriesId = optString("SeriesId").takeIf { it.isNotBlank() }
         ).takeIf { it.id.isNotBlank() && it.name.isNotBlank() }
     }
 

@@ -518,6 +518,12 @@
     <string name="provider_retry">Retry</string>
     <string name="provider_offline_navigation">You can still open Stremio or Live TV from the navigation above.</string>
     <string name="provider_continue_watching">Continue Watching</string>
+    <string name="provider_episodes">Episodes</string>
+    <string name="provider_loading_episodes">Loading episodes…</string>
+    <string name="provider_no_episodes">No playable episodes were found.</string>
+    <string name="provider_episodes_unavailable">Episodes could not be loaded. Try again later.</string>
+    <string name="provider_season_number">Season %1$d</string>
+    <string name="provider_specials">Specials</string>
     <string name="provider_loading_library">Loading Jellyfin library…</string>
     <string name="iptv_loading">Loading IPTV playlist…</string>
     <string name="iptv_playlist_settings">Playlist settings</string>
