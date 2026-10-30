@@ -30,7 +30,24 @@ object Iptv {
 
     fun playlistUrl(context: Context) = prefs(context).getString(key(context, "playlistUrl"), "").orEmpty()
     fun setPlaylistUrl(context: Context, value: String) =
-        prefs(context).edit().putString(key(context, "playlistUrl"), value.trim()).apply()
+        prefs(context).edit().putString(key(context, "playlistUrl"), value.trim())
+            .putString(key(context, "playlistType"), "m3u").remove(key(context, "xtreamServer"))
+            .remove(key(context, "xtreamUsername")).remove(key(context, "xtreamPassword")).apply()
+
+    fun setXtream(context: Context, server: String, username: String, password: String) {
+        require(username.isNotBlank() && password.isNotBlank()) { "Enter your Xtream username and password." }
+        prefs(context).edit().putString(key(context, "playlistType"), "xtream")
+            .putString(key(context, "xtreamServer"), Jellyfin.normalizeServerUrl(server))
+            .putString(key(context, "xtreamUsername"), username)
+            .putString(key(context, "xtreamPassword"), password).apply()
+    }
+
+    fun forgetProfile(context: Context, profileId: String) {
+        prefs(context).edit().apply {
+            listOf("playlistUrl", "playlistType", "xtreamServer", "xtreamUsername", "xtreamPassword")
+                .forEach { remove(it + "@" + profileId) }
+        }.apply()
+    }
 
     fun parseM3u(content: String): IptvPlaylist {
         val channels = mutableListOf<IptvChannel>()
@@ -76,6 +93,14 @@ object Iptv {
     }
 
     fun load(context: Context): IptvPlaylist {
+        val p = prefs(context)
+        if (p.getString(key(context, "playlistType"), "m3u") == "xtream") {
+            val server = p.getString(key(context, "xtreamServer"), "").orEmpty()
+            val username = p.getString(key(context, "xtreamUsername"), "").orEmpty()
+            val password = p.getString(key(context, "xtreamPassword"), "").orEmpty()
+            if (server.isBlank() || username.isBlank() || password.isBlank()) return IptvPlaylist(emptyList())
+            return IptvPlaylist(parseXtream(server, username, password))
+        }
         val url = playlistUrl(context)
         if (url.isBlank()) return IptvPlaylist(emptyList())
         return parseM3u(Http.get(url, timeoutMs = 30_000, headers = mapOf("Accept" to "*/*")))
