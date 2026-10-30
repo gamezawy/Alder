@@ -37,6 +37,7 @@ object Jellyfin {
 
     private data class CachedResponse(val body: String, val expiresAt: Long)
     private val responseCache = ConcurrentHashMap<String, CachedResponse>()
+    private val refreshingKeys = ConcurrentHashMap.newKeySet<String>()
 
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
     private fun key(context: Context, name: String) = name + "@" + (Profiles.active(context)?.id ?: "none")
@@ -67,6 +68,7 @@ object Jellyfin {
     }
 
     fun disconnect(context: Context) {
+        invalidateCache(context)
         prefs(context).edit().remove(key(context, "token")).remove(key(context, "userId"))
             .remove(key(context, "username")).remove(key(context, "modernAuthorization")).apply()
     }
@@ -181,7 +183,22 @@ object Jellyfin {
         val queryKey = query.toSortedMap().entries.joinToString("&") { encode(it.key) + "=" + encode(it.value) }
         val key = profileId + "|" + account.serverUrl + "|" + account.userId + "|" + path + "|" + queryKey
         val now = android.os.SystemClock.elapsedRealtime()
-        responseCache[key]?.takeIf { it.expiresAt > now }?.let { return it.body }
+        val cached = responseCache[key]
+        if (cached != null) {
+            if (cached.expiresAt > now) return cached.body
+            // Stale-while-revalidate: return the last good shelf immediately and refresh quietly.
+            if (refreshingKeys.add(key)) Screen.pool.execute {
+                try {
+                    val fresh = request(context.applicationContext, path, query)
+                    responseCache[key] = CachedResponse(fresh, android.os.SystemClock.elapsedRealtime() + ttlMs.coerceAtLeast(1_000))
+                } catch (_: Throwable) {
+                    // Keep the stale copy; a transient server hiccup must not blank the Home screen.
+                } finally {
+                    refreshingKeys.remove(key)
+                }
+            }
+            return cached.body
+        }
         val body = request(context, path, query)
         responseCache[key] = CachedResponse(body, now + ttlMs.coerceAtLeast(1_000))
         if (responseCache.size > 256) responseCache.entries.removeIf { it.value.expiresAt <= now }
@@ -295,7 +312,6 @@ object Jellyfin {
     }
 
     fun reportStarted(context: Context, itemId: String, mediaSourceId: String?, playSessionId: String?, directPlay: Boolean) {
-        invalidateCache(context)
         val account = account(context) ?: return
         val body = JSONObject().put("ItemId", itemId).put("PlayMethod", if (directPlay) "DirectPlay" else "Transcode")
             .put("CanSeek", true).put("IsPaused", false).put("PositionTicks", 0)
@@ -322,13 +338,19 @@ object Jellyfin {
         Http.post(account.serverUrl + "/Sessions/Playing/Stopped", body.toString(),
             headers = JellyfinAuth.tokenHeaders(account.accessToken, account.useModernAuthorization) +
                 ("Accept" to "application/json"))
-        invalidateCache(context)
     }
     fun imageUrl(context: Context, itemId: String, tag: String?, maxWidth: Int = 600): String? {
         val account = account(context) ?: return null
         if (tag.isNullOrBlank()) return null
         return account.serverUrl + "/Items/" + encode(itemId) + "/Images/Primary?tag=" + encode(tag) +
             "&maxWidth=" + maxWidth.coerceIn(100, 2000) + "&" + JellyfinAuth.apiKeyParameter(account.useModernAuthorization) + "=" + encode(account.accessToken)
+    }
+
+    fun backdropUrl(context: Context, itemId: String, maxWidth: Int = 1600): String? {
+        val account = account(context) ?: return null
+        return account.serverUrl + "/Items/" + encode(itemId) + "/Images/Backdrop?maxWidth=" +
+            maxWidth.coerceIn(400, 2400) + "&" + JellyfinAuth.apiKeyParameter(account.useModernAuthorization) +
+            "=" + encode(account.accessToken)
     }
 
     /** Authorization for Media3 HTTP requests; Jellyfin 12 uses the standard header, not a URL token. */

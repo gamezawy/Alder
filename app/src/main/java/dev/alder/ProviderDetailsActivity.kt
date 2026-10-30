@@ -128,17 +128,28 @@ class ProviderDetailsActivity : Screen() {
         }
     }
 
-    private fun playSelected(series: JellyfinItem) {
+    private fun playSelected(selected: JellyfinItem) {
+        if (!selected.type.equals("Series", true)) {
+            val isEpisode = selected.type.equals("Episode", true)
+            startActivity(Intent(this, ProviderPlayerActivity::class.java)
+                .putExtra("jellyfinItemId", selected.id)
+                .putExtra("title", selected.seriesName ?: selected.name)
+                .putExtra("episodeTitle", if (isEpisode) listOfNotNull(selected.seasonNumber?.let { "S%02d".format(it) }, selected.episodeNumber?.let { "E%02d".format(it) }, selected.name).joinToString("  ·  ") else "")
+                .putExtra("seriesId", selected.seriesId)
+                .putExtra("resumeAtMs", selected.playbackPositionTicks / 10_000L))
+            return
+        }
         val episode = loadedEpisodes.firstOrNull { it.playbackPositionTicks > 0L && !it.played }
             ?: loadedEpisodes.firstOrNull { !it.played }
             ?: loadedEpisodes.firstOrNull()
-        if (episode != null) playEpisode(series, episode)
+        if (episode != null) playEpisode(selected, episode)
     }
 
     private fun playEpisode(series: JellyfinItem, episode: JellyfinItem) {
         startActivity(Intent(this, ProviderPlayerActivity::class.java)
             .putExtra("jellyfinItemId", episode.id)
             .putExtra("title", series.name)
+            .putExtra("seriesId", series.id)
             .putExtra("episodeTitle", listOfNotNull(episode.seasonNumber?.let { "S%02d".format(it) }, episode.episodeNumber?.let { "E%02d".format(it) }, episode.name).joinToString("  ·  "))
             .putExtra("resumeAtMs", episode.playbackPositionTicks / 10_000L))
     }

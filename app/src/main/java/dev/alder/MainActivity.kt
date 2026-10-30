@@ -863,6 +863,7 @@ class MainActivity : Screen() {
             else -> source.type.lowercase(Locale.ROOT)
         }
         val poster = Jellyfin.imageUrl(this, source.id, source.imageTag, 720)
+        val backdrop = Jellyfin.backdropUrl(this, source.id, 1800)
         val duration = source.runTimeTicks ?: 0L
         val progress = if (duration > 0L) (source.playbackPositionTicks.toFloat() / duration).coerceIn(0f, 1f) else 0f
         val remainingMinutes = if (duration > 0L && source.playbackPositionTicks > 0L)
@@ -874,7 +875,7 @@ class MainActivity : Screen() {
         val episodeLabel = if (episode) listOfNotNull(source.seasonNumber?.let { "S$it" }, source.episodeNumber?.let { "E$it" }).joinToString(" ") else null
         val displayName = if (episode) source.seriesName ?: source.name else source.name
         return Item(
-            source.id, type, displayName, poster, poster, null, source.overview,
+            source.id, type, displayName, poster, backdrop, null, source.overview,
             listOfNotNull(source.year?.toString(), source.officialRating, source.genres.take(2).joinToString(", ").ifBlank { null }),
             null, progress, resume = progress > 0f, left = listOfNotNull(episodeLabel, timeLeft).joinToString(DOT).ifBlank { null },
             timeLeft = timeLeft, stoppedAt = source.playbackPositionTicks / 10_000L, finished = source.played,
