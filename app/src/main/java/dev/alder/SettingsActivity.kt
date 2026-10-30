@@ -316,6 +316,7 @@ class SettingsActivity : Screen() {
     private var firstDetail: View? = null
     private var addonValue: TextView? = null
     private val prefs by lazy { getSharedPreferences("settings", MODE_PRIVATE) }
+    private var playlistDialog: android.app.AlertDialog? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -516,7 +517,7 @@ class SettingsActivity : Screen() {
                     Jellyfin.disconnect(this)
                     showGroup(Group.SOURCES)
                 }
-                actionRow(getString(R.string.iptv_settings), Iptv.playlistUrl(this).ifBlank { getString(R.string.not_configured) },
+                actionRow(getString(R.string.iptv_settings), Iptv.sourceSummary(this).ifBlank { getString(R.string.not_configured) },
                     getString(R.string.iptv_settings_hint), ::m3uDialog)
                 actionRow(getString(R.string.iptv_xtream), Iptv.xtreamServer(this).ifBlank { getString(R.string.not_configured) },
                     getString(R.string.iptv_xtream_hint), ::xtreamDialog)
@@ -716,6 +717,27 @@ class SettingsActivity : Screen() {
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
         }
         val error = text("", SMALL, color = 0xFFFF8A80.toInt())
+        val discover = text(getString(R.string.jellyfin_discover), BODY, color = TUNGSTEN).apply {
+            setPadding(0, dp(8), 0, dp(8))
+            isFocusable = true
+            setOnClickListener {
+                error.text = getString(R.string.jellyfin_discovering)
+                background({ Jellyfin.discoverServers() }) { result ->
+                    val servers = result.getOrDefault(emptyList())
+                    if (servers.isEmpty()) {
+                        error.text = getString(R.string.jellyfin_no_servers)
+                    } else {
+                        error.text = getString(R.string.jellyfin_servers_found, servers.size)
+                        if (servers.size == 1) server.setText(servers.first().address)
+                        else choose(getString(R.string.jellyfin_select_server),
+                            servers.map { it.name + "  ·  " + it.address }) { index ->
+                            server.setText(servers[index].address)
+                        }
+                    }
+                }
+            }
+        }
+        layout.addView(discover)
         layout.addView(server)
         layout.addView(username)
         layout.addView(password)
