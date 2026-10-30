@@ -852,6 +852,8 @@ class MainActivity : Screen() {
             slot.addView(row(getString(R.string.row_continue), items.take(START), later(items)).view)
             startCinema(items.take(CINEMA_MAX))
             android.util.Log.d("Alder", "unified Continue in ${android.os.SystemClock.uptimeMillis() - opened} ms")
+        } else {
+            cinema = emptyList()
         }
         if (focusedTag != null) (slot.findViewWithTag<View>(focusedTag)
             ?: rows.firstOrNull { isInside(it.view, slot) }?.cards?.firstOrNull())?.requestFocus()
