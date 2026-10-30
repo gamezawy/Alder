@@ -806,10 +806,6 @@ class SettingsActivity : Screen() {
         }
     }
 
-    private companion object {
-        const val REQUEST_PLAYLIST_FILE = 7302
-    }
-
     private fun xtreamDialog() {
         val layout = column(Gravity.START).apply { setPadding(dp(18), dp(10), dp(18), dp(6)) }
         val server = android.widget.EditText(this).apply { hint = getString(R.string.iptv_server_address); setSingleLine() }
@@ -950,6 +946,7 @@ class SettingsActivity : Screen() {
     }
 
     private companion object {
+        const val REQUEST_PLAYLIST_FILE = 7302
         /** The languages Alder has words for, besides English; res/xml/locales_config.xml lists the same. */
         val APP_LANGUAGES = listOf("en", "ar", "es", "pt-BR", "fr", "de", "it", "hi")
         val PRESETS = listOf(
