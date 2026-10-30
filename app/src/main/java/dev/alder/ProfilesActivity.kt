@@ -408,7 +408,7 @@ class ProfilesActivity : Screen() {
             avatar,
             previewName.marginTop(16),
         ).apply { gravity = Gravity.CENTER }
-        val content = onboardingFrame(step(1, if (first) 2 else 3), 1, if (first) 2 else 3, copy, preview, dp(65), 1.05f, 0.95f)
+        val content = onboardingFrame(step(1, if (first) 3 else 4), 1, if (first) 3 else 4, copy, preview, dp(65), 1.05f, 0.95f)
         setWindowed(content, onboardingBackdrop())
         window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN)
         firstKey.requestFocus()
