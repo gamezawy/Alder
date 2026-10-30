@@ -250,9 +250,9 @@ class ProviderPlayerActivity : Screen() {
             player?.let { if (it.isPlaying) it.pause() else it.play() }
         }
         add(getString(R.string.player_forward_10)) { seekBy(10_000L) }
-        subtitleButton = add(getString(R.string.player_audio_subtitles)) { openTrackOptions(C.TRACK_TYPE_TEXT) }
+        subtitleButton = add(getString(R.string.tab_subtitles)) { openTrackOptions(C.TRACK_TYPE_TEXT) }
         add(getString(R.string.player_audio)) { openTrackOptions(C.TRACK_TYPE_AUDIO) }
-        aspectButton = add(getString(R.string.player_aspect_fit)) { openAspectOptions() }
+        aspectButton = add(getString(R.string.player_aspect_ratio)) { openAspectOptions() }
         panel.addView(actions, LinearLayout.LayoutParams(-1, dp(52)).apply { topMargin = dp(8) })
         return panel
     }
@@ -326,7 +326,7 @@ class ProviderPlayerActivity : Screen() {
             val labels = listOf(getString(R.string.subtitles_off)) + choices.map { it.label }
             val selected = if (C.TRACK_TYPE_TEXT in exo.trackSelectionParameters.disabledTrackTypes) 0
                 else choices.indexOfFirst { choice -> choice.group.isTrackSelected(choice.index) }.let { if (it < 0) 0 else it + 1 }
-            choose(getString(R.string.player_audio_subtitles), labels, checked = selected) { index ->
+            choose(getString(R.string.tab_subtitles), labels, checked = selected) { index ->
                 val builder = exo.trackSelectionParameters.buildUpon()
                 if (index == 0) {
                     builder.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
@@ -375,7 +375,7 @@ class ProviderPlayerActivity : Screen() {
         val exo = player ?: return
         val selected = exo.currentTracks.groups.firstOrNull { it.type == C.TRACK_TYPE_TEXT && it.isSelected }
         subtitleButton.text = if (selected == null || C.TRACK_TYPE_TEXT in exo.trackSelectionParameters.disabledTrackTypes)
-            getString(R.string.subtitles_off) else getString(R.string.player_subtitles_on)
+            getString(R.string.subtitles_off) else getString(R.string.tab_subtitles)
     }
 
     private fun audioFormat(format: Format): String? = when (format.sampleMimeType) {

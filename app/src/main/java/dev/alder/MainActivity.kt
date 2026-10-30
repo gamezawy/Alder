@@ -152,6 +152,7 @@ class MainActivity : Screen() {
     private enum class ListSort { RECENT, NAME, UNWATCHED }
 
     private lateinit var profile: Profile
+    private var jellyfinWasConnected = false
     override val backdrop get() = art
     private lateinit var scroller: ScrollView
     private lateinit var content: LinearLayout
@@ -329,6 +330,7 @@ class MainActivity : Screen() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         profile = Profiles.active(this) ?: return switchProfile()
+        jellyfinWasConnected = Jellyfin.account(this) != null
         main.postDelayed({ if (!isFinishing) whatsNewOnce() }, WHATS_NEW_WAIT)
         // Last launch's first cinema title: start its art and logo now, while the library is still being read.
         getSharedPreferences("home", MODE_PRIVATE).let { prefs ->
@@ -557,6 +559,9 @@ class MainActivity : Screen() {
 
     override fun onResume() {
         super.onResume()
+        val connected = Jellyfin.account(this) != null
+        if (::content.isInitialized && page.isJellyfin && connected != jellyfinWasConnected) showPage(page)
+        jellyfinWasConnected = connected
         // ponytail: idle dim and the cinema screensaver are off (2026-10-26, not wanted yet); post `idle` here to bring the cinema back.
         updateDot?.visibility = if (Updates.hasUpdate(this)) View.VISIBLE else View.GONE
         if (Updates.due(this)) background({ Updates.latest(applicationContext) }) { r ->
