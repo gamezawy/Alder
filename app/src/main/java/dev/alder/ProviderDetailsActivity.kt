@@ -24,6 +24,8 @@ class ProviderDetailsActivity : Screen() {
     private lateinit var hero: FrameLayout
     private lateinit var root: FrameLayout
     private lateinit var playAction: TextView
+    private var episodesAction: TextView? = null
+    private var episodesUnavailable = false
     private lateinit var guide: FrameLayout
     private lateinit var guideRows: LinearLayout
     private var guideOpen = false
@@ -114,11 +116,14 @@ class ProviderDetailsActivity : Screen() {
         }
         buttons.addView(playAction, wrap().apply { marginEnd = dp(10) })
         if (loaded.type.equals("Series", true)) {
-            buttons.addView(pill(R.string.provider_episodes).apply {
-                setOnClickListener { if (loadedEpisodes.isNotEmpty()) showGuide() }
-            }, wrap().apply { marginEnd = dp(10) })
-            playAction.isEnabled = false
-            playAction.alpha = 0.55f
+            episodesAction = pill(R.string.provider_episodes).apply {
+                setOnClickListener {
+                    if (::guide.isInitialized) showGuide()
+                    else android.widget.Toast.makeText(this@ProviderDetailsActivity,
+                        getString(R.string.provider_loading_episodes), android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
+            buttons.addView(episodesAction, wrap().apply { marginEnd = dp(10) })
         }
         buttons.addView(pill(R.string.watch_status_title).apply {
             setOnClickListener { chooseStatus(loaded) }
@@ -128,7 +133,7 @@ class ProviderDetailsActivity : Screen() {
             leftMargin = dp(PAD)
             bottomMargin = dp(86)
         })
-        playAction.requestFocus()
+        if (loaded.type.equals("Series", true)) episodesAction?.requestFocus() else playAction.requestFocus()
     }
 
     private fun loadEpisodes(series: JellyfinItem) {
@@ -136,13 +141,11 @@ class ProviderDetailsActivity : Screen() {
             if (isFinishing || isDestroyed) return@background
             result.onSuccess { episodes ->
                 loadedEpisodes = episodes
-                playAction.isEnabled = episodes.isNotEmpty()
-                playAction.alpha = if (episodes.isNotEmpty()) 1f else 0.55f
+                episodesUnavailable = false
                 buildGuide(episodes)
             }.onFailure {
                 loadedEpisodes = emptyList()
-                playAction.isEnabled = false
-                playAction.alpha = 0.55f
+                episodesUnavailable = true
                 buildGuide(emptyList())
             }
         }
@@ -182,7 +185,7 @@ class ProviderDetailsActivity : Screen() {
         })
 
         if (episodes.isEmpty()) {
-            guideRows.addView(text(R.string.provider_no_episodes, BODY, color = TEXT_2).marginTop(12))
+            guideRows.addView(text(if (episodesUnavailable) R.string.provider_episodes_unavailable else R.string.provider_no_episodes, BODY, color = TEXT_2).marginTop(12))
             return
         }
         episodes.groupBy { it.seasonNumber ?: 0 }.toSortedMap().forEach { (season, seasonEpisodes) ->
@@ -207,11 +210,15 @@ class ProviderDetailsActivity : Screen() {
     }
 
     private fun showGuide() {
-        if (!::guide.isInitialized || loadedEpisodes.isEmpty()) return
+        if (!::guide.isInitialized) {
+            android.widget.Toast.makeText(this, getString(R.string.provider_loading_episodes),
+                android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
         guideOpen = true
         guide.visibility = View.VISIBLE
-        guideRows.getChildAt(1)?.requestFocus()
-            ?: guideRows.getChildAt(0)?.requestFocus()
+        (0 until guideRows.childCount).asSequence().map { guideRows.getChildAt(it) }
+            .firstOrNull { it.isFocusable }?.requestFocus()
     }
 
     private fun hideGuide() {
@@ -225,7 +232,12 @@ class ProviderDetailsActivity : Screen() {
             playItem(selected, selected.seriesName ?: selected.name, selected.seriesId)
             return
         }
-        nextJellyfinEpisode(loadedEpisodes)?.let { playEpisode(selected, it) }
+        val episode = nextJellyfinEpisode(loadedEpisodes)
+        if (episode == null) {
+            android.widget.Toast.makeText(this,
+                getString(if (episodesUnavailable) R.string.provider_episodes_unavailable else R.string.provider_no_episodes),
+                android.widget.Toast.LENGTH_SHORT).show()
+        } else playEpisode(selected, episode)
     }
 
     private fun playEpisode(series: JellyfinItem, episode: JellyfinItem) {
