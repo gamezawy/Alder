@@ -186,8 +186,8 @@ class ProviderSearchActivity : Screen() {
                         rowFocus(8)
                         setOnClickListener {
                             if (hit.jellyfin != null) {
-                                startActivity(Intent(this@ProviderSearchActivity, ProviderPlayerActivity::class.java)
-                                    .putExtra("jellyfinItemId", hit.jellyfin.id).putExtra("title", hit.jellyfin.name))
+                                startActivity(Intent(this@ProviderSearchActivity, ProviderDetailsActivity::class.java)
+                                    .putExtra("jellyfinItemId", hit.jellyfin.id))
                             } else hit.stremio?.let { meta ->
                                 startActivity(Intent(this@ProviderSearchActivity, DetailsActivity::class.java)
                                     .putExtra("type", meta.type).putExtra("id", meta.id).putExtra("name", meta.name)
