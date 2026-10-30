@@ -524,4 +524,6 @@
     <string name="iptv_load_failed">Couldn’t load the playlist. Check its address and try again.</string>
     <string name="iptv_no_channels">No channels in this group.</string>
     <string name="iptv_playlist_url_hint">M3U or M3U8 playlist URL</string>
+    <string name="searching_providers">Searching Jellyfin and Stremio…</string>
+    <string name="search_provider_results">%1$d results across your providers</string>
 </resources>
