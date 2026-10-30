@@ -532,6 +532,16 @@
     <string name="stremio_first">पहले Stremio</string>
     <string name="jellyfin_settings">Jellyfin सर्वर</string>
     <string name="jellyfin_settings_hint">अपना Jellyfin सर्वर और खाता कनेक्ट करें। पासवर्ड केवल साइन इन के लिए उपयोग होता है और सहेजा नहीं जाता।</string>
+    <string name="jellyfin_discover">इस नेटवर्क पर Jellyfin सर्वर खोजें</string>
+    <string name="jellyfin_discovering">स्थानीय नेटवर्क पर खोज जारी है…</string>
+    <string name="jellyfin_no_servers">कोई Jellyfin सर्वर नहीं मिला। सर्वर का पता स्वयं दर्ज करें।</string>
+    <string name="jellyfin_servers_found">%1$d Jellyfin सर्वर मिले।</string>
+    <string name="jellyfin_select_server">Jellyfin सर्वर चुनें</string>
+    <string name="jellyfin_setup_title">अपने Jellyfin सर्वर से जुड़ें</string>
+    <string name="jellyfin_setup_description">Alder आपके स्थानीय नेटवर्क पर Jellyfin सर्वर खोज सकता है, या आप सर्वर का पता स्वयं दर्ज कर सकते हैं।</string>
+    <string name="jellyfin_setup_later">बाद में सेट अप करें</string>
+    <string name="jellyfin_connecting">Jellyfin से कनेक्ट हो रहा है…</string>
+    <string name="iptv_browse_file">M3U/M3U8 फ़ाइल चुनें</string>
     <string name="jellyfin_server_address">सर्वर पता (उदाहरण http://192.168.1.10:8096)</string>
     <string name="jellyfin_username">उपयोगकर्ता नाम</string>
     <string name="jellyfin_password">पासवर्ड</string>

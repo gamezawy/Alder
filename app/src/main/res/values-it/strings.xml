@@ -539,6 +539,16 @@
     <string name="stremio_first">Prima Stremio</string>
     <string name="jellyfin_settings">Server Jellyfin</string>
     <string name="jellyfin_settings_hint">Collega il server e l’account Jellyfin. La password viene usata solo per l’accesso e non viene salvata.</string>
+    <string name="jellyfin_discover">Cerca server Jellyfin in questa rete</string>
+    <string name="jellyfin_discovering">Ricerca nella rete locale…</string>
+    <string name="jellyfin_no_servers">Nessun server Jellyfin trovato. Inserisci manualmente l’indirizzo del server.</string>
+    <string name="jellyfin_servers_found">Trovati %1$d server Jellyfin.</string>
+    <string name="jellyfin_select_server">Scegli un server Jellyfin</string>
+    <string name="jellyfin_setup_title">Connetti il tuo server Jellyfin</string>
+    <string name="jellyfin_setup_description">Alder può cercare server Jellyfin nella rete locale oppure puoi inserire manualmente l’indirizzo del server.</string>
+    <string name="jellyfin_setup_later">Configura più tardi</string>
+    <string name="jellyfin_connecting">Connessione a Jellyfin…</string>
+    <string name="iptv_browse_file">Sfoglia per un file M3U/M3U8</string>
     <string name="jellyfin_server_address">Indirizzo server (ad esempio http://192.168.1.10:8096)</string>
     <string name="jellyfin_username">Nome utente</string>
     <string name="jellyfin_password">Password</string>
