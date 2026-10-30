@@ -417,7 +417,7 @@ class DetailsActivity : Screen() {
                 WatchStatus.WATCHED -> R.string.watch_status_watched
             })
         }
-        choose(getString(R.string.watch_status_title), labels, m.name,
+        choose(getString(R.string.watch_status_title), labels, metaId,
             checked = WatchStatuses.get(this, "stremio", metaId).ordinal) { index ->
             WatchStatuses.set(this, "stremio", metaId, statuses[index])
         }
