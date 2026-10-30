@@ -481,6 +481,7 @@
     <string name="profiles_your_name">आपका नाम</string>
     <string name="profiles_getting_code">साइन-इन कोड लिया जा रहा है…</string>
     <string name="profiles_back">← वापस</string>
+    <string name="profiles_setup_later">बाद में सेट अप करें</string>
     <string name="profiles_connect">Stremio कनेक्ट करें</string>
     <string name="profiles_signed_out">Stremio ने %1$s को इस टीवी से साइन आउट कर दिया। फिर से कनेक्ट करने के लिए %1$s के फ़ोन से स्कैन करें। %1$s की सेटिंग और PIN बने रहते हैं।</string>
     <string name="profiles_scan">%1$s के फ़ोन से स्कैन करें। Stremio खुलेगा और इस टीवी को साइन इन करने के लिए पूछेगा।</string>
