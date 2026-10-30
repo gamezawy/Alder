@@ -119,4 +119,6 @@
     <string name="list_empty">ستظهر هنا الأعمال التي تحفظها</string>
     <string name="search_recent">عمليات البحث الأخيرة</string>
     <string name="search_popular">الأكثر شيوعًا</string>
+    <string name="group_sources">المصادر</string>
+    <string name="hint_sources">اتصل بخادم Jellyfin ومزودي التلفزيون المباشر، وحدد المصدر الذي تريد إعطاءه الأولوية.</string>
 </resources>
