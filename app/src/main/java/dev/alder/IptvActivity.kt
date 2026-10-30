@@ -76,6 +76,7 @@ class IptvActivity : Screen() {
         }
         list.addView(groupRow)
         showChannels()
+        groupRow.getChildAt(0)?.requestFocus()
     }
 
     private fun showChannels() {
