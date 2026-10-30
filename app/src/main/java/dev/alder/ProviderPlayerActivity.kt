@@ -26,6 +26,7 @@ import android.os.Looper
 class ProviderPlayerActivity : Screen() {
     private var player: ExoPlayer? = null
     private var jellyfinItemId: String? = null
+    private var jellyfinPlaySessionId: String? = null
     private var stoppedReported = false
     private val progressHandler = Handler(Looper.getMainLooper())
     private val progressReporter = object : Runnable {
@@ -34,7 +35,7 @@ class ProviderPlayerActivity : Screen() {
             val exo = player ?: return
             val ticks = exo.currentPosition.coerceAtLeast(0L) * 10_000L
             val paused = !exo.isPlaying
-            Screen.pool.execute { runCatching { Jellyfin.reportPlayback(applicationContext, id, ticks, paused) } }
+            Screen.pool.execute { runCatching { Jellyfin.reportPlayback(applicationContext, id, ticks, paused, jellyfinPlaySessionId) } }
             progressHandler.postDelayed(this, 15_000L)
         }
     }
@@ -111,7 +112,8 @@ class ProviderPlayerActivity : Screen() {
                     finish()
                     return@background
                 }
-                Screen.pool.execute { runCatching { Jellyfin.reportStarted(applicationContext, itemId, playback.mediaSourceId, playback.directPlay) } }
+                jellyfinPlaySessionId = playback.playSessionId
+                Screen.pool.execute { runCatching { Jellyfin.reportStarted(applicationContext, itemId, playback.mediaSourceId, playback.playSessionId, playback.directPlay) } }
                 prepare(playback.streamUrl)
                 progressHandler.postDelayed(progressReporter, 15_000L)
             }
@@ -136,7 +138,7 @@ class ProviderPlayerActivity : Screen() {
         if (id != null && exo != null && !stoppedReported) {
             stoppedReported = true
             val ticks = (exo.currentPosition.coerceAtLeast(0L) * 10_000L)
-            Screen.pool.execute { runCatching { Jellyfin.reportStopped(applicationContext, id, ticks) } }
+            Screen.pool.execute { runCatching { Jellyfin.reportStopped(applicationContext, id, ticks, jellyfinPlaySessionId) } }
         }
         player?.release()
         player = null
