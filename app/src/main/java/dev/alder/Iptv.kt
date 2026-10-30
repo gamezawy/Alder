@@ -1,0 +1,128 @@
+package dev.alder
+
+import android.content.Context
+import org.json.JSONArray
+import org.json.JSONObject
+import java.net.URI
+import java.net.URLEncoder
+import java.util.Locale
+
+data class IptvChannel(
+    val name: String,
+    val streamUrl: String,
+    val group: String = "Other",
+    val tvgId: String? = null,
+    val logoUrl: String? = null,
+    val userAgent: String? = null,
+    val referrer: String? = null,
+    val catchup: String? = null
+)
+
+data class IptvPlaylist(val channels: List<IptvChannel>) {
+    fun groups(): List<String> = channels.map { it.group }.distinct()
+    fun inGroup(name: String): List<IptvChannel> = channels.filter { it.group == name }
+}
+
+object Iptv {
+    private const val PREFS = "iptv"
+    private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    private fun key(context: Context, name: String) = name + "@" + (Profiles.active(context)?.id ?: "none")
+
+    fun playlistUrl(context: Context) = prefs(context).getString(key(context, "playlistUrl"), "").orEmpty()
+    fun setPlaylistUrl(context: Context, value: String) =
+        prefs(context).edit().putString(key(context, "playlistUrl"), value.trim()).apply()
+
+    fun parseM3u(content: String): IptvPlaylist {
+        val channels = mutableListOf<IptvChannel>()
+        var pending: Pending? = null
+        var userAgent: String? = null
+        var referrer: String? = null
+        content.lineSequence().map { it.trim().removePrefix("\uFEFF") }.forEach { line ->
+            when {
+                line.isEmpty() -> Unit
+                line.startsWith("#EXTINF:", true) -> pending = parseExtInf(line)
+                line.startsWith("#EXTVLCOPT:", true) -> {
+                    val option = line.substringAfter(':')
+                    when {
+                        option.startsWith("http-user-agent=", true) -> userAgent = option.substringAfter('=')
+                        option.startsWith("http-referrer=", true) -> referrer = option.substringAfter('=')
+                    }
+                }
+                line.startsWith("#EXTHTTP:", true) -> {
+                    val json = runCatching { JSONObject(line.substringAfter(':')) }.getOrNull()
+                    userAgent = json?.optString("User-Agent")?.takeIf { it.isNotBlank() } ?: userAgent
+                    referrer = json?.optString("Referer")?.takeIf { it.isNotBlank() } ?: referrer
+                }
+                line.startsWith("#") -> Unit
+                pending != null -> {
+                    val entry = pending!!
+                    if (validStreamUrl(line)) channels += IptvChannel(
+                        name = entry.name.ifBlank { "Channel " + (channels.size + 1) },
+                        streamUrl = line,
+                        group = entry.group.ifBlank { "Other" },
+                        tvgId = entry.tvgId,
+                        logoUrl = entry.logo,
+                        userAgent = userAgent,
+                        referrer = referrer,
+                        catchup = entry.catchup
+                    )
+                    pending = null
+                    userAgent = null
+                    referrer = null
+                }
+            }
+        }
+        return IptvPlaylist(channels.distinctBy { it.streamUrl })
+    }
+
+    fun load(context: Context): IptvPlaylist {
+        val url = playlistUrl(context)
+        if (url.isBlank()) return IptvPlaylist(emptyList())
+        return parseM3u(Http.get(url, timeoutMs = 30_000, headers = mapOf("Accept" to "*/*")))
+    }
+
+    fun parseXtream(baseUrl: String, username: String, password: String, categoryId: String? = null): List<IptvChannel> {
+        val base = Jellyfin.normalizeServerUrl(baseUrl)
+        val credentials = "username=" + encode(username) + "&password=" + encode(password)
+        val category = categoryId?.let { "&category_id=" + encode(it) }.orEmpty()
+        val array = JSONArray(Http.get(base + "/player_api.php?" + credentials + "&action=get_live_streams" + category, timeoutMs = 30_000))
+        return (0 until array.length()).mapNotNull { i ->
+            val item = array.optJSONObject(i) ?: return@mapNotNull null
+            val id = item.optString("stream_id")
+            if (id.isBlank()) return@mapNotNull null
+            IptvChannel(
+                name = item.optString("name").ifBlank { "Channel " + id },
+                streamUrl = base + "/live/" + encode(username) + "/" + encode(password) + "/" + id + ".ts",
+                group = item.optString("category_name").ifBlank { "Other" },
+                tvgId = item.optString("epg_channel_id").takeIf { it.isNotBlank() },
+                logoUrl = item.optString("stream_icon").takeIf { it.startsWith("http", true) }
+            )
+        }
+    }
+
+    private data class Pending(val name: String, val group: String, val tvgId: String?, val logo: String?, val catchup: String?)
+
+    private fun parseExtInf(line: String): Pending {
+        val metadata = line.substringAfter("#EXTINF:").substringBeforeLast(',', "")
+        val attrs = Regex("""([A-Za-z0-9_-]+)\\s*=\\s*("(?:[^"]*)"|'(?:[^']*)'|[^,\\s]*)""")
+            .findAll(metadata)
+            .associate { match ->
+                match.groupValues[1].lowercase(Locale.ROOT) to match.groupValues[2].removeSurrounding("\"").removeSurrounding("'")
+            }
+        val displayName = line.substringAfterLast(',', "").trim()
+        return Pending(
+            name = displayName.ifBlank { attrs["tvg-name"].orEmpty() },
+            group = attrs["group-title"].orEmpty(),
+            tvgId = attrs["tvg-id"]?.takeIf { it.isNotBlank() },
+            logo = attrs["tvg-logo"]?.takeIf { validStreamUrl(it) },
+            catchup = attrs["catchup"]?.takeIf { it.isNotBlank() }
+        )
+    }
+
+    private fun validStreamUrl(value: String): Boolean = runCatching {
+        val uri = URI(value.trim())
+        uri.scheme?.lowercase(Locale.ROOT) in setOf("http", "https", "rtmp", "rtsp", "udp") && !uri.host.isNullOrBlank()
+    }.getOrDefault(false)
+
+    private fun encode(value: String) = URLEncoder.encode(value, Charsets.UTF_8.name())
+}
