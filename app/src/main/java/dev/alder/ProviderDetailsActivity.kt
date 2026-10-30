@@ -164,7 +164,7 @@ class ProviderDetailsActivity : Screen() {
             leftMargin = dp(PAD)
             bottomMargin = dp(86)
         })
-        if (loaded.type.equals("Series", true)) episodesAction?.requestFocus() else playAction.requestFocus()
+        playAction.requestFocus()
     }
 
     private fun loadEpisodes(series: JellyfinItem) {
