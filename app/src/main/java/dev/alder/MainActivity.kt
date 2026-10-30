@@ -979,7 +979,7 @@ class MainActivity : Screen() {
             else getString(R.string.time_left_minutes, remainingMinutes)
         } else null
         val episodeLabel = if (episode) listOfNotNull(source.seasonNumber?.let { "S$it" }, source.episodeNumber?.let { "E$it" }).joinToString(" ") else null
-        val displayName = if (episode) source.seriesName ?: source.name else source.name
+        val displayName = if (episode) source.seriesName?.takeIf { it.isNotBlank() } ?: source.name else source.name
         return Item(
             source.id, type, displayName, poster, backdrop, null, source.overview,
             listOfNotNull(source.year?.toString(), source.officialRating, source.genres.take(2).joinToString(", ").ifBlank { null }),
