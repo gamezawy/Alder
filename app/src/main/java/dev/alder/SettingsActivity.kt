@@ -753,7 +753,12 @@ class SettingsActivity : Screen() {
         dialog.setOnShowListener {
             dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 error.text = ""
-                background({ Jellyfin.authenticate(server.text.toString(), username.text.toString(), password.text.toString()) }) { result ->
+                val serverAddress = runCatching { Jellyfin.normalizeServerUrl(server.text.toString()) }.getOrElse {
+                    error.text = it.message ?: getString(R.string.jellyfin_signin_failed)
+                    return@setOnClickListener
+                }
+                server.setText(serverAddress)
+                background({ Jellyfin.authenticate(serverAddress, username.text.toString(), password.text.toString()) }) { result ->
                     result.onSuccess { account ->
                         runCatching { Jellyfin.saveAccount(this, account) }
                             .onSuccess {
