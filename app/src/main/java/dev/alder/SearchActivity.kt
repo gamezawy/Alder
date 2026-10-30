@@ -694,7 +694,7 @@ class SearchActivity : Screen() {
         val image = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; setBackgroundColor(BASE) }
         val shade = View(this).apply { setBackgroundColor(Color.BLACK); alpha = 0.5f }
         val card = FrameLayout(this).apply {
-            tag = if (provider != null) "jellyfin:\${provider.id}" else "\${meta?.type}:\${meta?.id}"
+            tag = if (provider != null) "jellyfin:${provider.id}" else "${meta?.type}:${meta?.id}"
             outlineProvider = object : ViewOutlineProvider() {
                 override fun getOutline(view: View, outline: Outline) =
                     outline.setRoundRect(0, 0, view.width, view.height, dp(6).toFloat())
