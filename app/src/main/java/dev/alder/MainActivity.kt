@@ -450,6 +450,7 @@ class MainActivity : Screen() {
                 "library" -> Page.LIBRARY
                 else -> Page.HOME
             }
+        jellyfinWasConnected = Jellyfin.account(this) != null
         showPage(initialPage)
         main.postDelayed(::warmPages, WARM_AFTER)
     }
