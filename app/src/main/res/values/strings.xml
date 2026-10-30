@@ -163,7 +163,6 @@
     <string name="player_aspect_fit">Fit</string>
     <string name="player_aspect_fill">Stretch</string>
     <string name="player_aspect_zoom">Zoom</string>
-    <string name="player_subtitles_on">Subtitles</string>
     <string name="player_no_tracks">No tracks available</string>
     <string name="player_audio_subtitles">Audio &amp; subtitles</string>
     <string name="player_change_stream">Change stream</string>
