@@ -158,6 +158,7 @@
     <string name="player_rewind_10">−10 Sek.</string>
     <string name="player_forward_10">+10 Sek.</string>
     <string name="player_audio">Audio</string>
+    <string name="player_speed">Geschwindigkeit</string>
     <string name="player_aspect_ratio">Seitenverhältnis</string>
     <string name="player_aspect_fit">Einpassen</string>
     <string name="player_aspect_fill">Strecken</string>
