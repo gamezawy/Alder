@@ -924,7 +924,7 @@ class MainActivity : Screen() {
 
     private fun loadJellyfinShelves(p: Page): List<JellyfinShelf> {
         if (Jellyfin.account(applicationContext) == null) return emptyList()
-        val views = Jellyfin.views(applicationContext)
+        val views = runCatching { Jellyfin.views(applicationContext) }.getOrDefault(emptyList())
         return when (p) {
             Page.HOME -> buildList {
                 val resume = runCatching { Jellyfin.resumeItems(applicationContext) }.getOrDefault(emptyList())
