@@ -936,7 +936,10 @@ class MainActivity : Screen() {
                 views.forEach { view ->
                     val latest = runCatching { Jellyfin.latestItems(applicationContext, view.id, 18) }
                         .getOrDefault(emptyList())
-                        .filter { it.type.equals("Movie", true) || it.type.equals("Series", true) }
+                        .filter {
+                            it.type.equals("Movie", true) || it.type.equals("Series", true) || it.type.equals("Episode", true)
+                        }
+                        .distinctBy { (it.seriesName?.takeIf(String::isNotBlank) ?: it.name).lowercase(Locale.ROOT) }
                     if (latest.isNotEmpty()) add(JellyfinShelf(
                         getString(R.string.provider_recently_added, view.name), latest
                     ))
