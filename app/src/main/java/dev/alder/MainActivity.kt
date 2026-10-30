@@ -824,13 +824,13 @@ class MainActivity : Screen() {
     private fun appendJellyfinRows(p: Page, token: Int, opened: Long) {
         if (p !in setOf(Page.HOME, Page.SHOWS, Page.MOVIES)) return
         val account = Jellyfin.account(this) ?: return
-        val cacheKey = "\${profile.id}|\${account.serverUrl}|\${account.userId}|\${p.label}"
+        val cacheKey = "${profile.id}|${account.serverUrl}|${account.userId}|${p.label}"
         val shelfSlot = slot()
         var shown: String? = null
 
         fun signature(shelves: List<JellyfinShelf>) = shelves.joinToString("||") { shelf ->
             shelf.title + "|" + shelf.items.joinToString(",") {
-                "\${it.id}:\${it.played}:\${it.playbackPositionTicks}:\${it.imageTag.orEmpty()}"
+                "${it.id}:${it.played}:${it.playbackPositionTicks}:${it.imageTag.orEmpty()}"
             }
         }
 
@@ -867,9 +867,9 @@ class MainActivity : Screen() {
                 if (token != generation || page != p || isFinishing || isDestroyed) return@background
                 result.onSuccess { shelves ->
                     display(shelves)
-                    android.util.Log.d("Alder", "Jellyfin shelves on \${p.label}: \${android.os.SystemClock.uptimeMillis() - opened} ms")
+                    android.util.Log.d("Alder", "Jellyfin shelves on ${p.label}: ${android.os.SystemClock.uptimeMillis() - opened} ms")
                 }.onFailure { error ->
-                    android.util.Log.w("Alder", "Jellyfin shelves on \${p.label} failed: $error")
+                    android.util.Log.w("Alder", "Jellyfin shelves on ${p.label} failed: $error")
                 }
             }
         }
