@@ -74,6 +74,9 @@ class SearchActivity : Screen() {
     private var lastKeyboardFocus: View? = null
     private var firstResult: View? = null
     private var focused: Meta? = null
+    private var focusedProvider: JellyfinItem? = null
+    private var jellyfinHits: List<JellyfinItem> = emptyList()
+    private var jellyfinSearchDone = true
     private var numeric = false
     private var keyboardArabic = false
     private var languageLabel: TextView? = null
@@ -492,21 +495,25 @@ class SearchActivity : Screen() {
         firstResult = null
         cards.clear()
         focused = null
+        focusedProvider = null
         hero.visibility = View.INVISIBLE
         results.removeAllViews()
         resultsScroll.scrollTo(0, 0)
         resultCount.text = ""
         results.addView(ring(), LinearLayout.LayoutParams(dp(28), dp(28)).apply { marginStart = dp(12) })
+        jellyfinHits = emptyList()
+        jellyfinSearchDone = query.isEmpty()
+
         if (query.isEmpty()) {
             background({
                 val addons = Stremio.savedAddons(authKey.orEmpty()).orEmpty().ifEmpty { Stremio.addons(authKey.orEmpty()) }
                 val catalogs = addons.flatMap { it.catalogs }
                     .filter { it.type == "movie" || it.type == "series" }
-                // Popular or trending first, then any other; one that fails or comes back empty gives way to the next.
                 catalogs.sortedByDescending { it.name.contains("popular", true) || it.name.contains("trending", true) }
                     .take(4).asSequence()
-                    .map { c -> runCatching { c.addon.savedCatalog(c)?.takeIf { it.isNotEmpty() } ?: c.addon.catalog(c) }.getOrDefault(emptyList())
-                        .filterNot { isAddonMessage(it.name) }.take(PER_TYPE) }
+                    .map { catalog -> runCatching {
+                        catalog.addon.savedCatalog(catalog)?.takeIf { it.isNotEmpty() } ?: catalog.addon.catalog(catalog)
+                    }.getOrDefault(emptyList()).filterNot { isAddonMessage(it.name) }.take(PER_TYPE) }
                     .firstOrNull { it.isNotEmpty() }.orEmpty()
             }) { answer ->
                 if (token != request) return@background
@@ -518,46 +525,90 @@ class SearchActivity : Screen() {
             }
             return
         }
+
+        var stremioHits = emptyList<Meta>()
+        var stremioFinished = false
+        var stremioFailed = false
+        var moveFocusWhenReady = moveFocus
+
+        fun updateResults(final: Boolean = false) {
+            if (token != request || isFinishing || isDestroyed) return
+            val merged = mergeProviderSearchHits(
+                jellyfinHits, stremioHits, Settings.sourcePriority(applicationContext)
+            )
+            val ranked = rankSearchTitles(merged, query) { it.title }
+            val movies = ranked.filter { hit ->
+                hit.jellyfin?.type?.equals("Movie", true) ?: (hit.stremio?.type == "movie")
+            }.take(PER_TYPE)
+            val shows = ranked.filter { hit ->
+                hit.jellyfin?.type?.equals("Series", true) ?: (hit.stremio?.type == "series")
+            }.take(PER_TYPE)
+            val sections = linkedMapOf<String, List<ProviderSearchHit>>()
+            if (movies.isNotEmpty()) sections[getString(R.string.tab_movies)] = movies
+            if (shows.isNotEmpty()) sections[getString(R.string.tab_shows)] = shows
+
+            if (sections.isNotEmpty()) {
+                renderUnified(sections, query, moveFocusWhenReady && (final || stremioFinished || jellyfinSearchDone))
+                moveFocusWhenReady = false
+            } else if (stremioFinished && jellyfinSearchDone) {
+                results.removeAllViews()
+                results.addView(if (stremioFailed)
+                    failed(getString(R.string.search_unavailable)) { search(false) }
+                else text(R.string.search_no_matches, BODY, color = TEXT_2))
+                resultCount.text = ""
+            }
+        }
+
+        background({ Jellyfin.search(applicationContext, query) }) { answer ->
+            if (token != request) return@background
+            jellyfinHits = answer.getOrDefault(emptyList())
+            jellyfinSearchDone = true
+            updateResults(final = true)
+        }
+
         background({ Stremio.savedAddons(authKey.orEmpty()) ?: Stremio.addons(authKey.orEmpty()) }) { loaded ->
             if (token != request) return@background
             val addons = loaded.getOrElse {
-                results.removeAllViews()
-                results.addView(failed(getString(R.string.search_unavailable)) { search(false) })
+                stremioFailed = true
+                stremioFinished = true
+                updateResults(final = true)
                 return@background
             }
             val answers = arrayOfNulls<List<Meta>>(addons.size)
             var completed = 0
             var failedCount = 0
-            var finished = false
-            fun update(final: Boolean = false) {
-                if (token != request || finished) return
-                val found = searchAnswersInAddonOrder(answers)
+            fun update() {
+                if (token != request) return
+                stremioHits = searchAnswersInAddonOrder(answers)
                     .filter { it.type == "movie" || it.type == "series" }
                     .filterNot { isAddonMessage(it.name) }
                     .distinctBy { it.type to it.id }
-                val ranked = rankSearchTitles(found, query) { it.name }
-                val sections = linkedMapOf(getString(R.string.tab_movies) to ranked.filter { it.type == "movie" }.take(PER_TYPE),
-                    getString(R.string.tab_shows) to ranked.filter { it.type == "series" }.take(PER_TYPE)).filterValues { it.isNotEmpty() }
-                if (sections.isNotEmpty()) render(sections, query, moveFocus && (final || completed == addons.size))
-                else if (final || completed == addons.size) {
-                    results.removeAllViews()
-                    results.addView(if (failedCount == completed && (completed > 0 || final))
-                        failed(getString(R.string.search_unavailable)) { search(false) }
-                    else text(R.string.search_no_matches, BODY, color = TEXT_2))
-                    resultCount.text = ""
+                if (completed == addons.size) {
+                    stremioFinished = true
+                    stremioFailed = addons.isNotEmpty() && failedCount == completed
                 }
+                updateResults(final = stremioFinished)
             }
-            if (addons.isEmpty()) { update(true); return@background }
-            main.postDelayed({ if (token == request) { update(true); finished = true } }, SEARCH_WAIT)
+            if (addons.isEmpty()) {
+                stremioFinished = true
+                updateResults(final = true)
+                return@background
+            }
+            main.postDelayed({
+                if (token == request && !stremioFinished) {
+                    stremioFinished = true
+                    stremioFailed = completed > 0 && failedCount == completed
+                    updateResults(final = true)
+                }
+            }, SEARCH_WAIT)
             addons.forEachIndexed { index, addon ->
                 searchTasks += searchPool.submit {
                     val answer = runCatching { addon.search(query) }
                     main.post {
-                        if (isDestroyed || token != request || finished) return@post
+                        if (isDestroyed || token != request || stremioFinished) return@post
                         completed++
                         answer.fold({ answers[index] = it }) { failedCount++ }
                         update()
-                        if (completed == addons.size) finished = true
                     }
                 }
             }
@@ -570,12 +621,22 @@ class SearchActivity : Screen() {
     }
 
     private fun render(sections: Map<String, List<Meta>>, query: String, moveFocus: Boolean) {
+        val hits = sections.mapValues { (_, metas) ->
+            metas.map { meta ->
+                ProviderSearchHit("stremio", meta.name,
+                    listOfNotNull(meta.year, meta.type).joinToString(" · "), "", stremio = meta)
+            }
+        }
+        renderUnified(hits, query, moveFocus)
+    }
+
+    private fun renderUnified(sections: Map<String, List<ProviderSearchHit>>, query: String, moveFocus: Boolean) {
         val selected = (currentFocus?.tag as? String)?.takeIf { resultsScroll.hasFocus() }
         cards.clear()
         firstResult = null
         results.removeAllViews()
         val total = sections.values.sumOf { it.size }
-        resultCount.text = if (total == 0 || query.isEmpty()) "" else plural(R.plurals.search_titles, total) // not for Popular
+        resultCount.text = if (total == 0 || query.isEmpty()) "" else plural(R.plurals.search_titles, total)
         if (total == 0) {
             hero.visibility = View.INVISIBLE
             results.addView(text(R.string.search_no_matches, BODY, color = TEXT_2))
@@ -598,24 +659,21 @@ class SearchActivity : Screen() {
             val row = LinearLayout(this).apply {
                 clipChildren = false
                 clipToPadding = false
-                setPadding(dp(6), dp(8), dp(48), dp(8)) // the last card rests at the screen's margin; 8 dp above and below leave room for the focused card to grow
+                setPadding(dp(6), dp(8), dp(48), dp(8))
             }
-            // Slides like Home's rows (below, on focus) instead of scrolling just far enough, which left cards cut at both edges.
             val scroller = object : HorizontalScrollView(this) {
                 override fun computeScrollDeltaToGetChildRectOnScreen(rect: android.graphics.Rect) = 0
-
-                // At either end the remote stays put, as on Home, instead of jumping to the row below.
                 override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
-                    val key = event.keyCode
-                    if (key == android.view.KeyEvent.KEYCODE_DPAD_RIGHT && row.getChildAt(row.childCount - 1)?.isFocused == true) return true
+                    if (event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_RIGHT &&
+                        row.getChildAt(row.childCount - 1)?.isFocused == true) return true
                     return super.dispatchKeyEvent(event)
                 }
             }.apply {
                 isHorizontalScrollBarEnabled = false
                 addView(row)
             }
-            list.forEachIndexed { index, meta ->
-                row.addView(card(meta, caption, scroller, index == 0), LinearLayout.LayoutParams(dp(88), dp(132)).apply {
+            list.forEachIndexed { index, hit ->
+                row.addView(card(hit, caption, scroller, index == 0), LinearLayout.LayoutParams(dp(88), dp(132)).apply {
                     if (index > 0) marginStart = dp(14)
                 })
             }
@@ -628,11 +686,15 @@ class SearchActivity : Screen() {
         else if (moveFocus) firstResult?.requestFocus()
     }
 
-    private fun card(meta: Meta, caption: TextView, scroller: HorizontalScrollView, firstInRow: Boolean): View {
+    private fun card(hit: ProviderSearchHit, caption: TextView, scroller: HorizontalScrollView, firstInRow: Boolean): View {
+        val provider = hit.jellyfin
+        val meta = hit.stremio
+        val imageUrl = provider?.let { Jellyfin.imageUrl(this, it.id, it.imageTag, 600) }
+            ?: meta?.poster ?: meta?.background
         val image = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; setBackgroundColor(BASE) }
         val shade = View(this).apply { setBackgroundColor(Color.BLACK); alpha = 0.5f }
         val card = FrameLayout(this).apply {
-            tag = "${meta.type}:${meta.id}"
+            tag = if (provider != null) "jellyfin:\${provider.id}" else "\${meta?.type}:\${meta?.id}"
             outlineProvider = object : ViewOutlineProvider() {
                 override fun getOutline(view: View, outline: Outline) =
                     outline.setRoundRect(0, 0, view.width, view.height, dp(6).toFloat())
@@ -641,40 +703,43 @@ class SearchActivity : Screen() {
             addView(image, FrameLayout.LayoutParams(-1, -1))
             addView(shade, FrameLayout.LayoutParams(-1, -1))
             cardFocus(6) { has ->
-                // grow() unclamps ancestors; Search must keep each row inside its result pane.
                 scroller.clipChildren = true
                 scroller.clipToPadding = true
                 resultsScroll.clipChildren = true
                 resultsScroll.clipToPadding = true
                 shade.animate().alpha(if (has) 0f else 0.5f).setDuration(150).start()
                 if (has) {
-                    // The focused row snaps to the pane's top, as on Home: scrolling just far enough left Shows cut off.
-                    // Rows above it draw nothing: the pane didn't clip them, and they sat over the title's words.
                     (scroller.parent as? View)?.let { group ->
                         resultsScroll.smoothScrollTo(0, group.top)
                         for (i in 0 until results.childCount) results.getChildAt(i).let { it.alpha = if (it.top < group.top) 0f else 1f }
                     }
-                    caption.text = meta.name + (meta.year?.let { "  ·  " + it.take(4) } ?: "")
+                    val year = provider?.year?.toString() ?: meta?.year
+                    caption.text = hit.title + (year?.let { "  ·  " + it.take(4) } ?: "")
                     caption.visibility = View.VISIBLE
-                    // The focused card goes to the row's start; near the end the row stops with the last card at the margin.
-                    // Cards that slid past the start hide, so no sliver shows at the pane's edge.
-                    val row = parent as ViewGroup
-                    val target = (left - row.paddingStart).coerceIn(0, (row.width - scroller.width).coerceAtLeast(0))
+                    val parentRow = parent as ViewGroup
+                    val target = (left - parentRow.paddingStart).coerceIn(0, (parentRow.width - scroller.width).coerceAtLeast(0))
                     scroller.smoothScrollTo(target, 0)
-                    for (i in 0 until row.childCount) row.getChildAt(i).let { it.animate().alpha(if (it.left < target + row.paddingStart - 1) 0f else 1f).setDuration(150).start() }
+                    for (i in 0 until parentRow.childCount) parentRow.getChildAt(i).let {
+                        it.animate().alpha(if (it.left < target + parentRow.paddingStart - 1) 0f else 1f).setDuration(150).start()
+                    }
                     caption.post {
                         caption.translationX = (left - target).toFloat()
                             .coerceIn(0f, (scroller.width - dp(48) - caption.width).coerceAtLeast(0).toFloat())
                     }
-                    show(meta)
+                    if (provider != null) showProvider(provider) else meta?.let(::show)
                 } else caption.visibility = View.INVISIBLE
             }
             setOnClickListener {
                 val query = input.text.toString().trim()
                 if (query.isNotEmpty()) remember(query)
-                startActivity(Intent(this@SearchActivity, DetailsActivity::class.java)
-                    .putExtra("type", meta.type).putExtra("id", meta.id).putExtra("name", meta.name)
-                    .putExtra("poster", meta.poster).putExtra("background", meta.background))
+                if (provider != null) {
+                    startActivity(Intent(this@SearchActivity, ProviderDetailsActivity::class.java)
+                        .putExtra("jellyfinItemId", provider.id))
+                } else meta?.let { title ->
+                    startActivity(Intent(this@SearchActivity, DetailsActivity::class.java)
+                        .putExtra("type", title.type).putExtra("id", title.id).putExtra("name", title.name)
+                        .putExtra("poster", title.poster).putExtra("background", title.background))
+                }
             }
             if (firstInRow) setOnKeyListener { _, code, event ->
                 if (event.action == KeyEvent.ACTION_DOWN && code == KeyEvent.KEYCODE_DPAD_LEFT)
@@ -684,13 +749,56 @@ class SearchActivity : Screen() {
         }
         cards += card to shade
         if (firstResult == null) firstResult = card
-        Images.load(meta.poster ?: meta.background, image, dp(96))
+        imageUrl?.let { Images.load(it, image, dp(96)) }
         return card
+    }
+
+    private fun show(hit: ProviderSearchHit) {
+        hit.jellyfin?.let(::showProvider) ?: hit.stremio?.let(::show)
+    }
+
+    private fun showProvider(item: JellyfinItem) {
+        if (focusedProvider?.id == item.id && focused == null) return
+        focused = null
+        focusedProvider = item
+        hero.visibility = View.VISIBLE
+        val url = Jellyfin.backdropUrl(this, item.id, 1800) ?: Jellyfin.imageUrl(this, item.id, item.imageTag, 1200)
+        if (url != null && url != art.tag) {
+            art.animate().cancel()
+            if (art.drawable != null) artBack.setImageDrawable(art.drawable)
+            art.alpha = 0f
+            Images.load(url, art, resources.displayMetrics.widthPixels, urgent = true, failed = {
+                if (focusedProvider === item) {
+                    art.setImageDrawable(artBack.drawable)
+                    art.alpha = 1f
+                    refrost()
+                }
+            }) {
+                if (focusedProvider === item) { art.animate().alpha(1f).setDuration(300).start(); refrost() }
+            }
+        } else if (url == null) {
+            art.tag = null
+            art.setImageDrawable(null)
+            artBack.setImageDrawable(null)
+            refrost()
+        }
+        heroLogo.visibility = View.GONE
+        heroName.visibility = View.VISIBLE
+        heroName.text = item.name
+        heroFacts.text = listOfNotNull(
+            item.year?.toString(), item.officialRating,
+            item.genres.take(2).joinToString(" · ").takeIf { it.isNotBlank() }
+        ).joinToString("  ·  ")
+        heroTag.visibility = View.GONE
+        heroScore.visibility = View.GONE
+        heroAbout.text = item.overview
+        heroAbout.visibility = if (item.overview.isBlank()) View.GONE else View.VISIBLE
     }
 
     private fun show(meta: Meta) {
         if (focused?.type == meta.type && focused?.id == meta.id) return
         focused = meta
+        focusedProvider = null
         hero.visibility = View.VISIBLE
         val url = meta.background ?: meta.poster
         if (url != null && url != art.tag) {
