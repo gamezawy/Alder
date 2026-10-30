@@ -89,14 +89,21 @@ class JellyfinHomeActivity : Screen() {
         }
         background({
             val resume = Jellyfin.resumeItems(applicationContext)
-            val latest = runCatching { Jellyfin.views(applicationContext) }.getOrDefault(emptyList())
-            val recentByView = latest.mapNotNull { view ->
+            val views = Jellyfin.views(applicationContext)
+            val recentByView = views.mapNotNull { view ->
                 runCatching { view to Jellyfin.latestItems(applicationContext, view.id, 12) }.getOrNull()
             }
-            Triple(resume, latest, recentByView)
+            val requestedStatuses = WatchStatus.entries.filter { it != WatchStatus.NONE }
+                .associateWith { WatchStatuses.items(applicationContext, "jellyfin", it) }
+            val allStatusIds = requestedStatuses.values.flatten().toSet()
+            val statusItems = if (allStatusIds.isEmpty()) emptyList() else views
+                .flatMap { Jellyfin.items(applicationContext, it.id, listOf("Movie", "Series"), 200) }
+                .distinctBy { it.id }.filter { it.id in allStatusIds }
+            val statusRows = requestedStatuses.mapValues { (_, ids) -> statusItems.filter { it.id in ids } }
+            Triple(resume, recentByView, statusRows)
         }) { result ->
             if (token != generation || isFinishing) return@background
-            result.onSuccess { (resume, views, recent) ->
+            result.onSuccess { (resume, recent, statusRows) ->
                 status.text = getString(R.string.provider_jellyfin_connected, Jellyfin.account(this)?.username.orEmpty())
                 body.removeAllViews()
                 if (resume.isNotEmpty()) addSection(getString(R.string.provider_continue_watching), resume)
@@ -104,8 +111,9 @@ class JellyfinHomeActivity : Screen() {
                     recent.forEach { (view, items) ->
                         if (items.isNotEmpty()) addSection(view.name, items)
                     }
-                } else if (views.isEmpty()) {
-                    status.text = getString(R.string.provider_no_libraries)
+                }
+                statusRows.forEach { (watchStatus, items) ->
+                    if (items.isNotEmpty()) addSection(getString(statusLabel(watchStatus)), items)
                 }
                 if (body.childCount == 0) body.addView(text(getString(R.string.provider_no_items), BODY, color = TEXT_2))
                 body.getChildAt(0)?.requestFocus()
@@ -175,6 +183,7 @@ class JellyfinHomeActivity : Screen() {
                 isFocusable = true
                 rowFocus(8)
                 setOnClickListener { play(item) }
+                setOnLongClickListener { setWatchStatus(item); true }
             }
             row.addView(label, LinearLayout.LayoutParams(dp(170), dp(76)).apply { marginEnd = dp(8) })
         }
@@ -183,6 +192,24 @@ class JellyfinHomeActivity : Screen() {
             addView(row)
         }
         body.addView(horizontal, LinearLayout.LayoutParams(-1, dp(88)))
+    }
+
+    private fun statusLabel(status: WatchStatus): Int = when (status) {
+        WatchStatus.NONE -> R.string.watch_status_none
+        WatchStatus.FAVORITE -> R.string.watch_status_favorite
+        WatchStatus.WATCHING -> R.string.watch_status_watching
+        WatchStatus.ON_HOLD -> R.string.watch_status_on_hold
+        WatchStatus.DROPPED -> R.string.watch_status_dropped
+        WatchStatus.WATCHED -> R.string.watch_status_watched
+    }
+
+    private fun setWatchStatus(item: JellyfinItem) {
+        val statuses = WatchStatus.entries
+        choose(getString(R.string.watch_status_title), statuses.map { getString(statusLabel(it)) }, item.name,
+            checked = WatchStatuses.get(this, "jellyfin", item.id).ordinal) { index ->
+            WatchStatuses.set(this, "jellyfin", item.id, statuses[index])
+            loadHome()
+        }
     }
 
     private fun play(item: JellyfinItem) {
