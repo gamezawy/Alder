@@ -235,8 +235,8 @@ class JellyfinHomeActivity : Screen() {
     }
 
     private fun play(item: JellyfinItem) {
-        startActivity(Intent(this, ProviderPlayerActivity::class.java)
-            .putExtra("jellyfinItemId", item.id).putExtra("title", item.name))
+        startActivity(Intent(this, ProviderDetailsActivity::class.java)
+            .putExtra("jellyfinItemId", item.id))
     }
 
     private fun showOffline(message: String) {
