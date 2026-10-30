@@ -73,6 +73,7 @@ object Jellyfin {
         require(raw.isNotEmpty()) { "Enter a Jellyfin server address." }
         val uri = java.net.URI(if ("://" in raw) raw else "http://$raw")
         val scheme = uri.scheme?.lowercase()
+            ?: throw IllegalArgumentException("Use a valid HTTP or HTTPS server address.")
         require(scheme in setOf("http", "https") && !uri.host.isNullOrBlank()) {
             "Use a valid HTTP or HTTPS server address."
         }
