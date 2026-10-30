@@ -104,6 +104,7 @@
     <string name="player_rewind_10">−10 ثوانٍ</string>
     <string name="player_forward_10">+10 ثوانٍ</string>
     <string name="player_audio">الصوت</string>
+    <string name="player_speed">السرعة</string>
     <string name="player_aspect_ratio">نسبة العرض إلى الارتفاع</string>
     <string name="player_aspect_fit">ملاءمة</string>
     <string name="player_aspect_fill">تمديد</string>
