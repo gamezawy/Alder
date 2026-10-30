@@ -6,7 +6,9 @@ import android.view.Gravity
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.TextView
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.Tracks
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionParameters
@@ -14,6 +16,8 @@ import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
+import android.os.Handler
+import android.os.Looper
 
 /**
  * Media3 playback entry point for Jellyfin items and IPTV channels.
@@ -23,6 +27,7 @@ class ProviderPlayerActivity : Screen() {
     private var player: ExoPlayer? = null
     private var jellyfinItemId: String? = null
     private var stoppedReported = false
+    private val progressHandler = Handler(Looper.getMainLooper())
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -54,12 +59,14 @@ class ProviderPlayerActivity : Screen() {
         }
         setContentView(root)
 
-        val audioLanguage = Settings.audioLanguage(this)
-        val subtitleLanguage = Settings.subtitleLanguage(this)
-        val trackParameters = TrackSelectionParameters.Builder(this)
+        val remembered = itemId?.let { Settings.titleChoice(this, it) }
+        val audioLanguage = remembered?.audio ?: Settings.audioLanguage(this)
+        val subtitleLanguage = remembered?.subtitles?.takeIf { it.isNotBlank() } ?: Settings.subtitleLanguage(this)
+        val trackBuilder = TrackSelectionParameters.Builder(this)
             .setPreferredAudioLanguage(audioLanguage)
             .setPreferredTextLanguage(subtitleLanguage)
-            .build()
+        if (remembered?.subtitles == "" || Settings.subPref(this) == "off") trackBuilder.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+        val trackParameters = trackBuilder.build()
         val headers = linkedMapOf<String, String>()
         intent.getStringExtra("userAgent")?.takeIf { it.isNotBlank() }?.let { headers["User-Agent"] = it }
         intent.getStringExtra("referrer")?.takeIf { it.isNotBlank() }?.let { headers["Referer"] = it }
