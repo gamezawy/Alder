@@ -105,9 +105,7 @@ class JellyfinHomeActivity : Screen() {
             val requestedStatuses = WatchStatus.entries.filter { it != WatchStatus.NONE }
                 .associateWith { WatchStatuses.items(applicationContext, "jellyfin", it) }
             val allStatusIds = requestedStatuses.values.flatten().toSet()
-            val statusItems = if (allStatusIds.isEmpty()) emptyList() else views
-                .mapNotNull { view -> runCatching { Jellyfin.items(applicationContext, view.id, listOf("Movie", "Series"), 200) }.getOrNull() }
-                .flatten().distinctBy { it.id }.filter { it.id in allStatusIds }
+            val statusItems = Jellyfin.itemsByIds(applicationContext, allStatusIds)
             val statusRows = requestedStatuses.mapValues { (_, ids) -> statusItems.filter { it.id in ids } }
             Triple(resume, recentByView, statusRows)
         }) { result ->
