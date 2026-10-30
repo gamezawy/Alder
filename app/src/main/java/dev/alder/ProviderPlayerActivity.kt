@@ -81,6 +81,15 @@ class ProviderPlayerActivity : Screen() {
                     android.widget.Toast.makeText(this@ProviderPlayerActivity,
                         getString(R.string.player_source_failed), android.widget.Toast.LENGTH_LONG).show()
                 }
+
+                override fun onTracksChanged(tracks: Tracks) {
+                    val id = jellyfinItemId ?: return
+                    val audio = tracks.groups.firstOrNull { it.type == C.TRACK_TYPE_AUDIO && it.isSelected }?.getTrackFormat(0)?.language
+                    val subtitle = tracks.groups.firstOrNull { it.type == C.TRACK_TYPE_TEXT && it.isSelected }?.getTrackFormat(0)?.language
+                    if (audio != null || subtitle != null) {
+                        Settings.pickedInPlayer(this@ProviderPlayerActivity, id, audio = audio, subtitles = subtitle)
+                    }
+                }
             })
         }
 
