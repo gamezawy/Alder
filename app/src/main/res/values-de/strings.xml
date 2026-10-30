@@ -552,4 +552,12 @@
     <string name="iptv_password">Xtream-Passwort</string>
     <string name="iptv_xtream">Xtream Codes</string>
     <string name="iptv_xtream_hint">Verbinde einen Xtream-Codes-Anbieter mit Serveradresse und Zugangsdaten.</string>
+    <string name="watch_status_title">Wiedergabestatus festlegen</string>
+    <string name="watch_status_none">Kein Status</string>
+    <string name="watch_status_favorite">Favoriten</string>
+    <string name="watch_status_watching">Wird angesehen</string>
+    <string name="watch_status_on_hold">Pausiert</string>
+    <string name="watch_status_dropped">Abgebrochen</string>
+    <string name="watch_status_watched">Angesehen</string>
+    <string name="iptv_favorites">Favoriten</string>
 </resources>
