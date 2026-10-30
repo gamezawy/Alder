@@ -103,7 +103,6 @@ object Iptv {
     private data class Pending(val name: String, val group: String, val tvgId: String?, val logo: String?, val catchup: String?)
 
     private fun parseExtInf(line: String): Pending {
-        val metadata = line.substringAfter("#EXTINF:").substringBeforeLast(',', "")
         val (metadata, displayName) = splitExtInf(line)
         val attrs = Regex("""([A-Za-z0-9_-]+)\s*=\s*("(?:[^"]*)"|'(?:[^']*)'|[^,\s]*)""")
             .findAll(metadata)
