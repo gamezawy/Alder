@@ -29,6 +29,28 @@ class JellyfinAuthTest {
         assertEquals("secret", JellyfinAuth.tokenHeaders("secret", false)["X-Emby-Token"])
     }
 
+    private fun episode(id: String, season: Int?, number: Int?, played: Boolean = false, position: Long = 0L) =
+        JellyfinItem(id, id, "Episode", null, null, null, played, position,
+            seasonNumber = season, episodeNumber = number)
+
+    @Test fun episodesAreOrderedBySeasonAndEpisodeWithoutServerSortFields() {
+        val unordered = listOf(episode("s2e1", 2, 1), episode("special", null, 2),
+            episode("s1e2", 1, 2), episode("s1e1", 1, 1))
+        assertEquals(listOf("special", "s1e1", "s1e2", "s2e1"), orderJellyfinEpisodes(unordered).map { it.id })
+    }
+
+    @Test fun nextEpisodePrefersUnfinishedResumeThenFirstUnwatched() {
+        val episodes = listOf(episode("watched", 1, 1, played = true),
+            episode("next", 1, 2), episode("resume", 1, 3, position = 45_000L))
+        assertEquals("resume", nextJellyfinEpisode(episodes)?.id)
+        assertEquals("next", nextJellyfinEpisode(episodes.dropLast(1))?.id)
+    }
+
+    @Test fun nextEpisodeFallsBackToFirstWhenEverythingWasWatched() {
+        val episodes = listOf(episode("first", 1, 1, played = true), episode("second", 1, 2, played = true))
+        assertEquals("first", nextJellyfinEpisode(episodes)?.id)
+    }
+
     @Test fun queryParameterMatchesServerGeneration() {
         assertEquals("ApiKey", JellyfinAuth.apiKeyParameter(true))
         assertEquals("api_key", JellyfinAuth.apiKeyParameter(false))
