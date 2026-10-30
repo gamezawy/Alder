@@ -509,4 +509,25 @@
     <string name="profiles_watchly_steps">"1.  Scannez avec le téléphone de %1$s pour ouvrir Watchly\n2.  Connectez-y le compte Stremio de %1$s\n3.  Installez-la sur le compte Stremio de %1$s\n\nLes sélections de %1$s apparaîtront ensuite sur l’Accueil. Vous pouvez terminer plus tard."</string>
     <string name="profiles_all_set">Tout est prêt</string>
     <string name="profiles_ready">Le profil de %1$s est prêt. Vous pourrez ajouter d’autres extensions plus tard dans Paramètres.</string>
+    <string name="action_save">Enregistrer</string>
+    <string name="provider_connecting">Connexion à Jellyfin…</string>
+    <string name="provider_library">Bibliothèque</string>
+    <string name="provider_stremio">Stremio</string>
+    <string name="provider_live_tv">TV en direct</string>
+    <string name="provider_search">Rechercher</string>
+    <string name="provider_jellyfin_not_connected">Jellyfin n’est pas connecté. Connectez un serveur dans Paramètres.</string>
+    <string name="provider_jellyfin_offline">Le serveur Jellyfin est indisponible. L’accueil reste ici ; vous pouvez ouvrir Stremio ou la TV en direct.</string>
+    <string name="provider_jellyfin_connected">Connecté à Jellyfin · %1$s</string>
+    <string name="provider_no_libraries">Aucune bibliothèque Jellyfin trouvée.</string>
+    <string name="provider_no_items">Rien à afficher pour le moment.</string>
+    <string name="provider_retry">Réessayer</string>
+    <string name="provider_offline_navigation">Vous pouvez toujours ouvrir Stremio ou la TV en direct depuis la navigation ci-dessus.</string>
+    <string name="provider_continue_watching">Reprendre</string>
+    <string name="provider_loading_library">Chargement de la bibliothèque Jellyfin…</string>
+    <string name="iptv_loading">Chargement de la liste IPTV…</string>
+    <string name="iptv_playlist_settings">Paramètres de la liste</string>
+    <string name="iptv_channel_count">%1$d chaînes</string>
+    <string name="iptv_load_failed">Impossible de charger la liste. Vérifiez l’adresse et réessayez.</string>
+    <string name="iptv_no_channels">Aucune chaîne dans ce groupe.</string>
+    <string name="iptv_playlist_url_hint">URL de liste M3U ou M3U8</string>
 </resources>
