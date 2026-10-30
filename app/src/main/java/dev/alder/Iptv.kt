@@ -47,7 +47,7 @@ object Iptv {
         prefs(context).edit().putString(key(context, "playlistType"), "xtream")
             .putString(key(context, "xtreamServer"), Jellyfin.normalizeServerUrl(server))
             .putString(key(context, "xtreamUsername"), username)
-            .putString(key(context, "xtreamPassword"), password).apply()
+            .putString(key(context, "xtreamPassword"), SecureStorage.encrypt(password)).apply()
     }
 
     fun forgetProfile(context: Context, profileId: String) {
@@ -105,7 +105,7 @@ object Iptv {
         if (p.getString(key(context, "playlistType"), "m3u") == "xtream") {
             val server = p.getString(key(context, "xtreamServer"), "").orEmpty()
             val username = p.getString(key(context, "xtreamUsername"), "").orEmpty()
-            val password = p.getString(key(context, "xtreamPassword"), "").orEmpty()
+            val password = SecureStorage.decrypt(p.getString(key(context, "xtreamPassword"), null)).orEmpty()
             if (server.isBlank() || username.isBlank() || password.isBlank()) return IptvPlaylist(emptyList())
             return IptvPlaylist(parseXtream(server, username, password))
         }
