@@ -162,6 +162,7 @@
     <string name="player_rewind_10">−10 s</string>
     <string name="player_forward_10">+10 s</string>
     <string name="player_audio">Audio</string>
+    <string name="player_speed">Velocità</string>
     <string name="player_aspect_ratio">Formato immagine</string>
     <string name="player_aspect_fit">Adatta</string>
     <string name="player_aspect_fill">Allunga</string>
