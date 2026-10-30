@@ -559,4 +559,12 @@
     <string name="iptv_password">Password Xtream</string>
     <string name="iptv_xtream">Xtream Codes</string>
     <string name="iptv_xtream_hint">Collega un provider Xtream Codes con indirizzo e credenziali.</string>
+    <string name="watch_status_title">Imposta stato</string>
+    <string name="watch_status_none">Nessuno stato</string>
+    <string name="watch_status_favorite">Preferiti</string>
+    <string name="watch_status_watching">In visione</string>
+    <string name="watch_status_on_hold">In sospeso</string>
+    <string name="watch_status_dropped">Abbandonato</string>
+    <string name="watch_status_watched">Visto</string>
+    <string name="iptv_favorites">Preferiti</string>
 </resources>
