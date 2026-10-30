@@ -560,4 +560,6 @@
     <string name="watch_status_dropped">छोड़ दिया</string>
     <string name="watch_status_watched">देख लिया</string>
     <string name="iptv_favorites">पसंदीदा</string>
+    <string name="group_sources">स्रोत</string>
+    <string name="hint_sources">Jellyfin और लाइव टीवी प्रदाताओं को कनेक्ट करें और प्राथमिक प्रदाता चुनें।</string>
 </resources>
