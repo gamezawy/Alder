@@ -22,7 +22,8 @@ data class JellyfinItem(
     val seasonNumber: Int? = null, val episodeNumber: Int? = null,
     val seriesName: String? = null, val seriesId: String? = null
 )
-data class JellyfinPlayback(val itemId: String, val mediaSourceId: String?, val playSessionId: String?, val streamUrl: String, val directPlay: Boolean)
+data class JellyfinSubtitle(val url: String, val language: String, val label: String, val mimeType: String, val isDefault: Boolean)
+data class JellyfinPlayback(val itemId: String, val mediaSourceId: String?, val playSessionId: String?, val streamUrl: String, val directPlay: Boolean, val subtitles: List<JellyfinSubtitle> = emptyList())
 class JellyfinException(message: String, val statusCode: Int? = null) : java.io.IOException(message)
 
 /**
@@ -310,7 +311,36 @@ object Jellyfin {
             if (session != null) append("&PlaySessionId=").append(encode(session))
             if (!account.useModernAuthorization) append("&api_key=").append(encode(account.accessToken))
         }
-        return JellyfinPlayback(itemId, sourceId, session, stream, direct)
+        val subtitles = source.optJSONArray("MediaStreams")?.let { streams ->
+            (0 until streams.length()).mapNotNull { index ->
+                val track = streams.optJSONObject(index) ?: return@mapNotNull null
+                if (!track.optString("Type").equals("Subtitle", true)) return@mapNotNull null
+                val delivery = track.optString("DeliveryUrl").takeIf { it.isNotBlank() }
+                if (!track.optBoolean("IsExternal") && delivery == null) return@mapNotNull null
+                val trackIndex = track.optInt("Index", -1)
+                if (trackIndex < 0) return@mapNotNull null
+                val path = delivery ?: run {
+                    if (sourceId == null) return@mapNotNull null
+                    "/Videos/" + encode(itemId) + "/" + encode(sourceId) + "/Subtitles/" + trackIndex + "/Stream.vtt"
+                }
+                val full = if (path.startsWith("http", true)) path else account.serverUrl + "/" + path.trimStart('/')
+                val url = withStreamAuthorization(full, account)
+                val extension = path.substringBefore('?').substringAfterLast('.', "vtt").lowercase()
+                val mime = when (extension) {
+                    "srt", "subrip" -> "application/x-subrip"
+                    "ass", "ssa" -> "text/x-ssa"
+                    "ttml", "xml" -> "application/ttml+xml"
+                    else -> "text/vtt"
+                }
+                val language = track.optString("Language").takeIf { it.isNotBlank() && it != "und" } ?: "und"
+                val label = track.optString("DisplayTitle").takeIf { it.isNotBlank() }
+                    ?: track.optString("Title").takeIf { it.isNotBlank() }
+                    ?: track.optString("Language").takeIf { it.isNotBlank() }
+                    ?: context.getString(R.string.track_number, trackIndex + 1)
+                JellyfinSubtitle(url, language, label, mime, track.optBoolean("IsDefault"))
+            }
+        }.orEmpty()
+        return JellyfinPlayback(itemId, sourceId, session, stream, direct, subtitles)
     }
 
     fun reportStarted(context: Context, itemId: String, mediaSourceId: String?, playSessionId: String?, directPlay: Boolean) {

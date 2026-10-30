@@ -164,7 +164,7 @@ class ProviderPlayerActivity : Screen() {
                             playback.playSessionId, playback.directPlay)
                     }
                 }
-                prepare(playback.streamUrl)
+                prepare(playback.streamUrl, playback.subtitles)
                 progressHandler.postDelayed(progressReporter, 15_000L)
             }
         } else prepare(url)
@@ -257,10 +257,18 @@ class ProviderPlayerActivity : Screen() {
         return panel
     }
 
-    private fun prepare(url: String) {
+    private fun prepare(url: String, subtitles: List<JellyfinSubtitle> = emptyList()) {
         val exo = player ?: return
         val lower = url.substringBefore('?').lowercase(Locale.ROOT)
-        val item = MediaItem.Builder().setUri(url).apply {
+        val subtitleConfigurations = subtitles.map { subtitle ->
+            MediaItem.SubtitleConfiguration.Builder(android.net.Uri.parse(subtitle.url))
+                .setMimeType(subtitle.mimeType)
+                .setLanguage(subtitle.language)
+                .setLabel(subtitle.label)
+                .setSelectionFlags(if (subtitle.isDefault) C.SELECTION_FLAG_DEFAULT else 0)
+                .build()
+        }
+        val item = MediaItem.Builder().setUri(url).setSubtitleConfigurations(subtitleConfigurations).apply {
             if (lower.endsWith(".m3u8") || lower.contains("/master.m3u8")) setMimeType(MimeTypes.APPLICATION_M3U8)
         }.build()
         exo.setMediaItem(item, startAtMs)
