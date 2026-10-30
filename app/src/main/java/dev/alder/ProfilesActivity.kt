@@ -574,7 +574,7 @@ class ProfilesActivity : Screen() {
             text(R.string.profiles_new_to_stremio, SMALL, color = TEXT_3).onArt().marginTop(10),
         ).apply { gravity = Gravity.CENTER_VERTICAL }
         val first = Profiles.all(this).isEmpty()
-        val total = if (again != null || first) 2 else 3
+        val total = if (again != null) 2 else if (first) 3 else 4
         val content = onboardingFrame(if (again != null) getString(R.string.profiles_step_sign_in) else step(2, total),
             if (again != null) 1 else 2, total, left, steps, dp(55), 0f, 1f, dp(300))
         content.addView(back, FrameLayout.LayoutParams(-2, dp(32), Gravity.BOTTOM or Gravity.START).apply {
@@ -714,10 +714,115 @@ class ProfilesActivity : Screen() {
         draftColor = Profiles.COLORS[0]
         // Each profile brings its own add-ons (stream add-ons are shared in Settings, never copied);
         // the others' lists only tell where Watchly lives, so the new profile can set up its own.
-        if (others.isEmpty()) openHome(profile)
-        else background({ others.flatMap { runCatching { Stremio.addons(it.authKey) }.getOrDefault(emptyList()) } }) {
-            showWatchly(profile, it.getOrDefault(emptyList()))
+        showJellyfinSetup(profile, others)
+    }
+
+    private fun showJellyfinSetup(profile: Profile, otherProfiles: List<Profile>) {
+        ++pickerGeneration
+        val generation = pickerGeneration
+        backTo = { openHome(profile) }
+        val server = EditText(this).apply {
+            hint = getString(R.string.jellyfin_server_address)
+            setSingleLine()
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_URI
+            setText(Jellyfin.serverUrl(this@ProfilesActivity))
         }
+        val username = EditText(this).apply {
+            hint = getString(R.string.jellyfin_username)
+            setSingleLine()
+        }
+        val password = EditText(this).apply {
+            hint = getString(R.string.jellyfin_password)
+            setSingleLine()
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+        }
+        val status = text(R.string.jellyfin_discovering, SMALL, color = TEXT_2)
+        val error = text("", SMALL, color = TUNGSTEN)
+        val discover = onboardingButton(getString(R.string.jellyfin_discover))
+        val connect = onboardingButton(getString(R.string.jellyfin_connect))
+        val later = chip(R.string.jellyfin_setup_later)
+        val total = if (otherProfiles.isEmpty()) 3 else 4
+
+        fun finishSetup() {
+            if (otherProfiles.isEmpty()) {
+                openHome(profile)
+            } else {
+                background({ otherProfiles.flatMap { runCatching { Stremio.addons(it.authKey) }.getOrDefault(emptyList()) } }) {
+                    if (generation == pickerGeneration) showWatchly(profile, it.getOrDefault(emptyList()))
+                }
+            }
+        }
+
+        fun findServers() {
+            status.text = getString(R.string.jellyfin_discovering)
+            error.text = ""
+            discover.isEnabled = false
+            background({ Jellyfin.discoverServers() }) { result ->
+                if (generation != pickerGeneration) return@background
+                discover.isEnabled = true
+                val servers = result.getOrDefault(emptyList())
+                if (servers.isEmpty()) {
+                    status.text = getString(R.string.jellyfin_no_servers)
+                    return@background
+                }
+                status.text = getString(R.string.jellyfin_servers_found, servers.size)
+                if (servers.size == 1) {
+                    server.setText(servers.first().address)
+                } else {
+                    choose(getString(R.string.jellyfin_select_server),
+                        servers.map { it.name + "  ·  " + it.address }) { index ->
+                        server.setText(servers[index].address)
+                    }
+                }
+            }
+        }
+
+        discover.setOnClickListener { findServers() }
+        connect.setOnClickListener {
+            error.text = ""
+            status.text = getString(R.string.jellyfin_connecting)
+            connect.isEnabled = false
+            background({ Jellyfin.authenticate(server.text.toString(), username.text.toString(), password.text.toString()) }) { result ->
+                if (generation != pickerGeneration) return@background
+                connect.isEnabled = true
+                result.onSuccess { account ->
+                    runCatching { Jellyfin.saveAccount(this, account) }
+                        .onSuccess { finishSetup() }
+                        .onFailure { error.text = it.message ?: getString(R.string.jellyfin_signin_failed) }
+                }.onFailure {
+                    error.text = it.message ?: getString(R.string.jellyfin_signin_failed)
+                    status.text = ""
+                }
+            }
+        }
+        later.setOnClickListener { finishSetup() }
+
+        val fields = column(Gravity.START,
+            text(R.string.jellyfin_setup_title, 36f, serif = true),
+            text(R.string.jellyfin_setup_description, BODY, color = TEXT_2).marginTop(8),
+            discover.marginTop(14),
+            server.apply { layoutParams = LinearLayout.LayoutParams(-1, dp(42)).apply { topMargin = dp(12) } },
+            username.apply { layoutParams = LinearLayout.LayoutParams(-1, dp(42)).apply { topMargin = dp(8) } },
+            password.apply { layoutParams = LinearLayout.LayoutParams(-1, dp(42)).apply { topMargin = dp(8) } },
+            status.marginTop(8),
+            error.marginTop(4),
+            LinearLayout(this).apply {
+                gravity = Gravity.CENTER_VERTICAL
+                addView(connect)
+                addView(later.apply { layoutParams = wrap().apply { marginStart = dp(12) } })
+            }.marginTop(14)
+        ).apply { gravity = Gravity.CENTER_VERTICAL }
+        val profileCard = column(Gravity.CENTER,
+            onboardingAvatar(profile.name.take(1).uppercase(), 100, profile.color),
+            text(profile.name, BODY, bold = true).marginTop(12)
+        ).apply {
+            gravity = Gravity.CENTER
+            setPadding(dp(22), dp(22), dp(22), dp(22))
+            background = glass(14)
+        }
+        setWindowed(onboardingFrame(step(3, total), 3, total, profileCard, fields, dp(45), 0.8f, 1.2f), onboardingBackdrop())
+        discover.requestFocus()
+        findServers()
     }
 
     // ---------- recommendations ----------
@@ -735,7 +840,7 @@ class ProfilesActivity : Screen() {
             text(getString(R.string.profiles_watchly_steps, profile.name), BODY, color = TEXT_3).marginTop(16),
             done.marginTop(32),
         )
-        setWindowed(onboardingFrame(step(3, 3), 3, 3, column(Gravity.CENTER,
+        setWindowed(onboardingFrame(step(4, 4), 4, 4, column(Gravity.CENTER,
             qr.apply { background = rounded(TEXT, 12) },
             text(profile.name, BODY, bold = true).marginTop(12)
         ).apply { gravity = Gravity.CENTER; setPadding(dp(22), dp(22), dp(22), dp(22)); background = glass(14) },
