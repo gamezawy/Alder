@@ -1,0 +1,119 @@
+package dev.alder
+
+import android.app.AlertDialog
+import android.os.Bundle
+import android.text.InputType
+import android.view.Gravity
+import android.view.View
+import android.widget.EditText
+import android.widget.LinearLayout
+import android.widget.ScrollView
+import android.widget.TextView
+
+class IptvActivity : Screen() {
+    private lateinit var status: TextView
+    private lateinit var list: LinearLayout
+    private var playlist = IptvPlaylist(emptyList())
+    private var selectedGroup = "All"
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        val root = column(Gravity.START).apply {
+            setBackgroundColor(BASE)
+            setPadding(dp(34), dp(24), dp(34), dp(20))
+        }
+        root.addView(text(getString(R.string.provider_live_tv), SERIF_TITLE, serif = true))
+        status = text(getString(R.string.iptv_loading), SMALL, color = TEXT_2).apply {
+            setPadding(0, dp(8), 0, dp(12))
+        }
+        root.addView(status)
+        val actions = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        val configure = action(getString(R.string.iptv_playlist_settings)) { editPlaylist() }
+        val refresh = action(getString(R.string.provider_retry)) { loadPlaylist() }
+        actions.addView(configure)
+        actions.addView(refresh)
+        root.addView(actions)
+        list = column(Gravity.START)
+        val scroll = ScrollView(this).apply { isVerticalScrollBarEnabled = false; addView(list) }
+        root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+        setContentView(root)
+        loadPlaylist()
+    }
+
+    private fun action(label: String, click: () -> Unit) = text(label, BODY, color = TUNGSTEN).apply {
+        setPadding(dp(12), dp(10), dp(12), dp(10))
+        isFocusable = true
+        rowFocus(8)
+        setOnClickListener { click() }
+    }
+
+    private fun loadPlaylist() {
+        status.text = getString(R.string.iptv_loading)
+        list.removeAllViews()
+        background({ Iptv.load(applicationContext) }) { result ->
+            result.onSuccess {
+                playlist = it
+                status.text = getString(R.string.iptv_channel_count, it.channels.size)
+                selectedGroup = "All"
+                showGroups()
+            }.onFailure {
+                status.text = getString(R.string.iptv_load_failed)
+                list.addView(action(getString(R.string.iptv_playlist_settings), ::editPlaylist))
+            }
+        }
+    }
+
+    private fun showGroups() {
+        list.removeAllViews()
+        val groups = listOf("All") + playlist.groups()
+        val groupRow = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        groups.forEach { group ->
+            groupRow.addView(action(group) {
+                selectedGroup = group
+                showChannels()
+            })
+        }
+        list.addView(groupRow)
+        showChannels()
+    }
+
+    private fun showChannels() {
+        while (list.childCount > 1) list.removeViewAt(1)
+        val channels = if (selectedGroup == "All") playlist.channels else playlist.inGroup(selectedGroup)
+        channels.forEach { channel ->
+            val row = text(channel.name, BODY, color = TEXT).apply {
+                setPadding(dp(12), dp(12), dp(12), dp(12))
+                isFocusable = true
+                rowFocus(8)
+                setOnClickListener {
+                    startActivity(android.content.Intent(this@IptvActivity, ProviderPlayerActivity::class.java)
+                        .putExtra("streamUrl", channel.streamUrl)
+                        .putExtra("title", channel.name)
+                        .putExtra("userAgent", channel.userAgent)
+                        .putExtra("referrer", channel.referrer))
+                }
+            }
+            list.addView(row, LinearLayout.LayoutParams(-1, -2))
+        }
+        if (channels.isEmpty()) list.addView(text(getString(R.string.iptv_no_channels), BODY, color = TEXT_2))
+    }
+
+    private fun editPlaylist() {
+        val input = EditText(this).apply {
+            hint = getString(R.string.iptv_playlist_url_hint)
+            setSingleLine()
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+            setText(Iptv.playlistUrl(this@IptvActivity))
+            setSelection(text.length)
+        }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.iptv_playlist_settings)
+            .setView(input)
+            .setNegativeButton(R.string.action_cancel, null)
+            .setPositiveButton(R.string.action_save) { _, _ ->
+                Iptv.setPlaylistUrl(this, input.text.toString())
+                loadPlaylist()
+            }
+            .show()
+    }
+}
