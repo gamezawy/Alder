@@ -30,6 +30,16 @@ class JellyfinException(message: String, val statusCode: Int? = null) : java.io.
  * Jellyfin API access scoped to the active Alder profile.
  * Passwords are never persisted; only the server URL and server-issued access token are stored locally.
  */
+internal fun orderJellyfinEpisodes(items: List<JellyfinItem>): List<JellyfinItem> =
+    items.sortedWith(compareBy<JellyfinItem> { it.seasonNumber ?: 0 }
+        .thenBy { it.episodeNumber ?: Int.MAX_VALUE }
+        .thenBy { it.name.lowercase(java.util.Locale.ROOT) })
+
+internal fun nextJellyfinEpisode(items: List<JellyfinItem>): JellyfinItem? =
+    items.firstOrNull { it.playbackPositionTicks > 0L && !it.played }
+        ?: items.firstOrNull { !it.played }
+        ?: items.firstOrNull()
+
 object Jellyfin {
     private const val PREFS = "jellyfin"
     private const val CLIENT_NAME = "Alder"
@@ -277,12 +287,20 @@ object Jellyfin {
     /** All episodes in a series, ordered by season and episode number for a normal TV browsing flow. */
     fun episodes(context: Context, seriesId: String, limit: Int = 500): List<JellyfinItem> {
         val account = account(context) ?: return emptyList()
-        val query = mapOf("UserId" to account.userId,
+        // Jellyfin's GetEpisodes API does not accept ParentIndexNumber/IndexNumber as SortBy fields.
+        // Fetch the series episode list with user data, then order it locally by season and episode.
+        val query = mapOf(
+            "UserId" to account.userId,
             "Fields" to "Overview,RunTimeTicks,UserData,ProductionYear,ImageTags,IndexNumber,ParentIndexNumber,SeriesName,SeriesId",
-            "SortBy" to "ParentIndexNumber,IndexNumber", "SortOrder" to "Ascending",
-            "Limit" to limit.coerceIn(1, 1_000).toString())
-        return JSONObject(cachedRequest(context, "/Shows/" + encode(seriesId) + "/Episodes", query, 60_000L))
+            "EnableUserData" to "true",
+            "EnableImages" to "true",
+            "ImageTypeLimit" to "1",
+            "EnableImageTypes" to "Primary",
+            "Limit" to limit.coerceIn(1, 1_000).toString()
+        )
+        val items = JSONObject(cachedRequest(context, "/Shows/" + encode(seriesId) + "/Episodes", query, 60_000L))
             .optJSONArray("Items").toItems()
+        return orderJellyfinEpisodes(items)
     }
 
     fun playback(context: Context, itemId: String): JellyfinPlayback {
