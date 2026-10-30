@@ -33,7 +33,8 @@ class ProviderPlayerActivity : Screen() {
             val id = jellyfinItemId ?: return
             val exo = player ?: return
             val ticks = exo.currentPosition.coerceAtLeast(0L) * 10_000L
-            Screen.pool.execute { runCatching { Jellyfin.reportPlayback(applicationContext, id, ticks, !exo.isPlaying) } }
+            val paused = !exo.isPlaying
+            Screen.pool.execute { runCatching { Jellyfin.reportPlayback(applicationContext, id, ticks, paused) } }
             progressHandler.postDelayed(this, 15_000L)
         }
     }
