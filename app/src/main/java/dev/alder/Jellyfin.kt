@@ -277,6 +277,27 @@ object Jellyfin {
         }
     }
 
+    /** Favorite movies and series for Alder's unified My List page. */
+    fun favorites(context: Context, limit: Int = 100): List<JellyfinItem> {
+        val account = account(context) ?: return emptyList()
+        val query = mapOf(
+            "UserId" to account.userId,
+            "Recursive" to "true",
+            "IsFavorite" to "true",
+            "IncludeItemTypes" to "Movie,Series",
+            "SortBy" to "DateCreated",
+            "SortOrder" to "Descending",
+            "EnableUserData" to "true",
+            "EnableImages" to "true",
+            "ImageTypeLimit" to "1",
+            "EnableImageTypes" to "Primary",
+            "Fields" to "Overview,RunTimeTicks,UserData,ProductionYear,ImageTags",
+            "Limit" to limit.coerceIn(1, 500).toString()
+        )
+        return JSONObject(cachedRequest(context, "/Users/" + encode(account.userId) + "/Items", query, 60_000L))
+            .optJSONArray("Items").toItems()
+    }
+
     fun latestItems(context: Context, parentId: String, limit: Int = 20): List<JellyfinItem> {
         val account = account(context) ?: return emptyList()
         return JSONArray(cachedRequest(context, "/Users/" + encode(account.userId) + "/Items/Latest",
