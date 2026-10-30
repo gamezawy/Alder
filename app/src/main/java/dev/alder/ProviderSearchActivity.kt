@@ -92,11 +92,11 @@ class ProviderSearchActivity : Screen() {
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
         setContentView(root)
         query.setOnEditorActionListener { _, _, _ -> runSearch(); true }
-        query.requestFocus()
         if (Settings.keyboardMode(this) == "system") {
+            query.requestFocus()
             query.post { (getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager)
                 .showSoftInput(query, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT) }
-        }
+        } else characterKeys.firstOrNull()?.requestFocus()
     }
 
     private fun buildKeyboard() {
