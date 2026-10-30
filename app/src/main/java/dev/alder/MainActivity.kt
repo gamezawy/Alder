@@ -187,6 +187,12 @@ class MainActivity : Screen() {
     private var search: ImageView? = null
     private var liveTv: ImageView? = null
     private val rows = mutableListOf<Row>()
+    private data class JellyfinShelf(
+        val title: String, val items: List<JellyfinItem>, val parentId: String? = null,
+        val includeTypes: List<String> = emptyList(), val pageable: Boolean = false, val wide: Boolean = false
+    )
+    private val jellyfinShelfCache = java.util.concurrent.ConcurrentHashMap<String, List<JellyfinShelf>>()
+    private var refreshJellyfinRows: (() -> Unit)? = null
     private var focusedSomething = false
     private val metas = mutableMapOf<String, Meta>() // full details, fetched once per title
 
@@ -439,10 +445,10 @@ class MainActivity : Screen() {
         val initialPage = Page.entries.firstOrNull { it.label == intent.getStringExtra("page") }
             ?: when (Settings.startTab(this)) {
                 "stremio" -> Page.HOME
-                "movies" -> if (Settings.showMovies(this)) Page.MOVIES else Page.JELLYFIN_HOME
-                "shows" -> if (Settings.showShows(this)) Page.SHOWS else Page.JELLYFIN_HOME
-                "library" -> Page.JELLYFIN_LIBRARY
-                else -> Page.JELLYFIN_HOME
+                "movies" -> if (Settings.showMovies(this)) Page.MOVIES else Page.HOME
+                "shows" -> if (Settings.showShows(this)) Page.SHOWS else Page.HOME
+                "library" -> Page.LIBRARY
+                else -> Page.HOME
             }
         showPage(initialPage)
         main.postDelayed(::warmPages, WARM_AFTER)
@@ -452,7 +458,11 @@ class MainActivity : Screen() {
         super.onNewIntent(intent)
         setIntent(intent)
         Page.entries.firstOrNull { it.label == intent.getStringExtra("page") }
-            ?.takeIf { it != page }?.let(::showPage)
+            ?.let { requested -> when (requested) {
+                Page.JELLYFIN_HOME -> Page.HOME
+                Page.JELLYFIN_LIBRARY -> Page.LIBRARY
+                else -> requested
+            } }?.takeIf { it != page }?.let(::showPage)
     }
 
     /**
@@ -549,6 +559,7 @@ class MainActivity : Screen() {
         } else {
             refreshLibrary?.invoke()
             refreshAddons?.invoke()
+            refreshJellyfinRows?.invoke()
         }
     }
 
@@ -560,7 +571,7 @@ class MainActivity : Screen() {
     override fun onResume() {
         super.onResume()
         val connected = Jellyfin.account(this) != null
-        if (::content.isInitialized && page.isJellyfin && connected != jellyfinWasConnected) showPage(page)
+        if (::content.isInitialized && connected != jellyfinWasConnected) showPage(page)
         jellyfinWasConnected = connected
         // ponytail: idle dim and the cinema screensaver are off (2026-10-26, not wanted yet); post `idle` here to bring the cinema back.
         updateDot?.visibility = if (Updates.hasUpdate(this)) View.VISIBLE else View.GONE
@@ -752,7 +763,7 @@ class MainActivity : Screen() {
             contentDescription = getString(R.string.nav_search)
             setPadding(dp(13), dp(7), dp(13), dp(7))
             setOnFocusChangeListener { _, _ -> styleNav() }
-            setOnClickListener { startActivity(Intent(this@MainActivity, ProviderSearchActivity::class.java)) }
+            setOnClickListener { startActivity(Intent(this@MainActivity, SearchActivity::class.java)) }
         }.inNav(width = dp(44), height = -1)
         liveTv = ImageView(this).apply {
             setImageResource(R.drawable.ic_tv)
@@ -763,13 +774,10 @@ class MainActivity : Screen() {
         }.inNav(width = dp(44), height = -1)
         // One destination bar for both sources. Jellyfin is the default Home/Library; Stremio remains
         // a clearly named section inside Alder rather than opening a second-looking home screen.
-        val navOrder = listOf(Page.JELLYFIN_HOME, Page.JELLYFIN_LIBRARY, Page.HOME, Page.SHOWS, Page.MOVIES, Page.LIVE, Page.LIBRARY)
+        // One navigation shell, matching Alder's original main-branch layout. Both providers contribute rows to it.
+        val navOrder = Page.entries.filterNot { it.isJellyfin }
         navOrder.forEach { p ->
-            if (p == Page.HOME) {
-                nav.addView(View(this).apply { setBackgroundColor(GLASS_EDGE) },
-                    LinearLayout.LayoutParams(dp(1), dp(22)).apply { marginStart = dp(NAV_GAP); marginEnd = dp(2) })
-            }
-            navItems[p] = text(if (p == Page.HOME) R.string.provider_stremio else p.words, BODY).apply {
+            navItems[p] = text(p.words, BODY).apply {
                 gravity = Gravity.CENTER
                 compoundDrawablePadding = dp(2)
                 setPadding(dp(12), dp(4), dp(12), dp(2))
@@ -808,62 +816,97 @@ class MainActivity : Screen() {
 
     private var lastAddons: List<Addon> = emptyList()
 
-    /** Jellyfin pages use Alder's original cinematic rows and hero treatment, not a second home activity. */
-    private fun showJellyfinPage(p: Page, token: Int, opened: Long) {
-        if (Jellyfin.account(this) == null) {
-            content.addView(failed(getString(R.string.provider_jellyfin_not_connected)) {
-                startActivity(Intent(this, SettingsActivity::class.java))
-            }, LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(PAD) })
-            return
+    /**
+     * Jellyfin shelves are ordinary Alder rows, placed before Stremio's catalog rows. A warm in-memory snapshot is
+     * drawn immediately; the server refresh runs behind it and only redraws when the data actually changed.
+     */
+    private fun appendJellyfinRows(p: Page, token: Int, opened: Long) {
+        if (p !in setOf(Page.HOME, Page.SHOWS, Page.MOVIES)) return
+        val account = Jellyfin.account(this) ?: return
+        val cacheKey = "\${profile.id}|\${account.serverUrl}|\${account.userId}|\${p.label}"
+        val shelfSlot = slot()
+        var shown: String? = null
+
+        fun signature(shelves: List<JellyfinShelf>) = shelves.joinToString("||") { shelf ->
+            shelf.title + "|" + shelf.items.joinToString(",") {
+                "\${it.id}:\${it.played}:\${it.playbackPositionTicks}:\${it.imageTag.orEmpty()}"
+            }
         }
-        content.addView(text(getString(R.string.provider_connecting), SMALL, color = TEXT_3)
-            .apply { setPadding(dp(PAD), dp(8), dp(PAD), dp(8)) })
-        background({
-            if (p == Page.JELLYFIN_HOME) {
-                val resume = Jellyfin.resumeItems(applicationContext)
-                val recent = Jellyfin.views(applicationContext).mapNotNull { view ->
-                    runCatching { view to Jellyfin.latestItems(applicationContext, view.id, 18) }.getOrNull()
-                }
-                resume to recent
-            } else {
-                val libraries = Jellyfin.views(applicationContext).mapNotNull { view ->
-                    runCatching { view to Jellyfin.items(applicationContext, view.id, limit = START) }.getOrNull()
-                }
-                emptyList<JellyfinItem>() to libraries
+
+        fun display(shelves: List<JellyfinShelf>) {
+            if (token != generation || page != p || isFinishing || isDestroyed) return
+            val next = signature(shelves)
+            if (shown == next) return
+            val focusedTag = currentFocus?.takeIf { isInside(it, shelfSlot) }?.tag
+            shown = next
+            jellyfinShelfCache[cacheKey] = shelves
+            rows.filter { isInside(it.view, shelfSlot) }.forEach { old ->
+                old.cards.forEach { it.unload() }
+                rows.remove(old)
             }
-        }) { result ->
-            if (token != generation || page != p || isFinishing || isDestroyed) return@background
-            result.onSuccess { (resume, sections) ->
-                content.removeAllViews()
-                if (p == Page.JELLYFIN_HOME && resume.isNotEmpty()) {
-                    val items = resume.map(::jellyfinHomeItem)
-                    val slot = slot()
-                    slot.addView(row(getString(R.string.provider_continue_watching), items.take(START), later(items), wide = true).view)
-                }
-                sections.forEach { (view, sourceItems) ->
-                    if (sourceItems.isEmpty()) return@forEach
-                    val items = sourceItems.map(::jellyfinHomeItem)
-                    val slot = slot()
-                    val more: ((Int) -> List<Item>)? = if (p == Page.JELLYFIN_LIBRARY) { from ->
-                        Jellyfin.items(applicationContext, view.id, limit = PAGE, startIndex = from).map(::jellyfinHomeItem)
-                    } else later(items)
-                    val title = if (p == Page.JELLYFIN_HOME) getString(R.string.provider_recently_added, view.name) else view.name
-                    slot.addView(row(title, items.take(START), more).view)
-                }
-                if (rows.none { it.view.parent != null }) {
-                    content.addView(text(getString(R.string.provider_no_items), BODY, color = TEXT_2)
-                        .apply { setPadding(dp(PAD), dp(12), dp(PAD), dp(12)) })
-                }
-                android.util.Log.d("Alder", "Jellyfin " + p.label + ": first rows in " +
-                    (android.os.SystemClock.uptimeMillis() - opened) + " ms")
-                main.post(::updateImages)
-            }.onFailure { error ->
-                content.removeAllViews()
-                val panel = failed(getString(R.string.provider_jellyfin_offline) + "\n" + (error.message ?: "")) {
-                    showPage(p)
-                }
-                content.addView(panel, LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(PAD) })
+            shelfSlot.removeAllViews()
+            shelves.forEach { shelf ->
+                val all = shelf.items.map(::jellyfinHomeItem)
+                if (all.isEmpty()) return@forEach
+                val more: ((Int) -> List<Item>)? = if (shelf.pageable && shelf.parentId != null) { from ->
+                    Jellyfin.items(applicationContext, shelf.parentId, shelf.includeTypes, limit = PAGE, startIndex = from)
+                        .map(::jellyfinHomeItem)
+                } else later(all)
+                shelfSlot.addView(row(shelf.title, all.take(START), more, wide = shelf.wide).view)
             }
+            if (focusedTag != null) (shelfSlot.findViewWithTag<View>(focusedTag)
+                ?: rows.firstOrNull { isInside(it.view, shelfSlot) }?.cards?.firstOrNull())?.requestFocus()
+            main.post(::updateImages)
+        }
+
+        jellyfinShelfCache[cacheKey]?.let(::display)
+
+        fun refresh() {
+            background({ loadJellyfinShelves(p) }) { result ->
+                if (token != generation || page != p || isFinishing || isDestroyed) return@background
+                result.onSuccess { shelves ->
+                    display(shelves)
+                    android.util.Log.d("Alder", "Jellyfin shelves on \${p.label}: \${android.os.SystemClock.uptimeMillis() - opened} ms")
+                }.onFailure { error ->
+                    android.util.Log.w("Alder", "Jellyfin shelves on \${p.label} failed: $error")
+                }
+            }
+        }
+        refreshJellyfinRows = ::refresh
+        refresh()
+    }
+
+    private fun loadJellyfinShelves(p: Page): List<JellyfinShelf> {
+        if (Jellyfin.account(applicationContext) == null) return emptyList()
+        val views = Jellyfin.views(applicationContext)
+        return when (p) {
+            Page.HOME -> buildList {
+                val resume = runCatching { Jellyfin.resumeItems(applicationContext) }.getOrDefault(emptyList())
+                    .filter { it.type.equals("Movie", true) || it.type.equals("Series", true) || it.type.equals("Episode", true) }
+                if (resume.isNotEmpty()) add(JellyfinShelf(
+                    getString(R.string.provider_continue_watching) + " · Jellyfin", resume, wide = true
+                ))
+                views.forEach { view ->
+                    val latest = runCatching { Jellyfin.latestItems(applicationContext, view.id, 18) }
+                        .getOrDefault(emptyList())
+                        .filter { it.type.equals("Movie", true) || it.type.equals("Series", true) }
+                    if (latest.isNotEmpty()) add(JellyfinShelf(
+                        getString(R.string.provider_recently_added, view.name), latest
+                    ))
+                }
+            }
+            Page.SHOWS, Page.MOVIES -> {
+                val types = if (p == Page.SHOWS) listOf("Series") else listOf("Movie")
+                views.mapNotNull { view ->
+                    val items = runCatching {
+                        Jellyfin.items(applicationContext, view.id, includeTypes = types, limit = START)
+                    }.getOrDefault(emptyList())
+                    items.takeIf { it.isNotEmpty() }?.let {
+                        JellyfinShelf(view.name, it, parentId = view.id, includeTypes = types, pageable = true)
+                    }
+                }
+            }
+            else -> emptyList()
         }
     }
 
@@ -941,7 +984,7 @@ class MainActivity : Screen() {
             val focused = item.isFocused
             item.background = if (focused) glass(NAV_R, true) else null
             item.setTextColor(if (p == page || focused) TEXT else TEXT_2)
-            item.text = getString(if (p == Page.HOME) R.string.provider_stremio else p.words)
+            item.text = getString(p.words)
             // The open page's dot hangs under its name; the others keep an empty one, so every name sits on one line.
             item.setCompoundDrawablesRelative(null, null, null, GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
@@ -1295,7 +1338,12 @@ class MainActivity : Screen() {
      * and asks the network behind them: catalogs refresh for the next visit, and the library replaces what's shown
      * only if it changed and the remote hasn't been touched yet.
      */
-    private fun showPage(p: Page, quick: Boolean = true) {
+    private fun showPage(requestedPage: Page, quick: Boolean = true) {
+        val p = when (requestedPage) {
+            Page.JELLYFIN_HOME -> Page.HOME
+            Page.JELLYFIN_LIBRARY -> Page.LIBRARY
+            else -> requestedPage
+        }
         dimHome(false)
         if (p != page) {
             genre = null // a genre belongs to the page it was picked on
@@ -1320,6 +1368,7 @@ class MainActivity : Screen() {
         loadMoreSections = null
         val opened = android.os.SystemClock.uptimeMillis()
         refreshLibrary = null
+        refreshJellyfinRows = null
         touched = false
         applyNavVisibility()
         styleNav()
@@ -1335,7 +1384,7 @@ class MainActivity : Screen() {
         nextRowHint.visibility = View.GONE
         moreHint.alpha = 0f
         lastHiddenRows = Settings.hiddenRows(this)
-        if (p == Page.HOME || p == Page.JELLYFIN_HOME) { lastFeaturedHome = Settings.featuredHome(this); cinema = emptyList() } // other pages keep Home's, so the screensaver works there too
+        if (p == Page.HOME) { lastFeaturedHome = Settings.featuredHome(this); cinema = emptyList() } // other pages keep Home's, so the screensaver works there too
         focusedSomething = false
         // The last page's title goes with it; an empty page (no library yet, no catalogs) shows none.
         heroItem = null
@@ -1348,11 +1397,8 @@ class MainActivity : Screen() {
         scroller.alpha = 1f
         stage.isFocusable = false
         chrome()
-        if (p.isJellyfin) {
-            showJellyfinPage(p, g, opened)
-            return
-        }
         val key = profile.authKey
+        appendJellyfinRows(p, g, opened)
 
         // Nothing at all came back (no network, Stremio down): say so once, with a retry, instead of a blank page.
         var failedShown = false
