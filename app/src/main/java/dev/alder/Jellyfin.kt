@@ -10,7 +10,9 @@ data class JellyfinAccount(val serverUrl: String, val accessToken: String, val u
 data class JellyfinItem(
     val id: String, val name: String, val type: String, val overview: String,
     val imageTag: String?, val year: Int?, val runTimeTicks: Long?,
-    val played: Boolean, val playbackPositionTicks: Long
+    val played: Boolean, val playbackPositionTicks: Long,
+    val genres: List<String> = emptyList(), val tagline: String? = null,
+    val communityRating: Double? = null, val officialRating: String? = null
 )
 data class JellyfinPlayback(val itemId: String, val mediaSourceId: String?, val playSessionId: String?, val streamUrl: String, val directPlay: Boolean)
 class JellyfinException(message: String, val statusCode: Int? = null) : java.io.IOException(message)
@@ -107,6 +109,13 @@ object Jellyfin {
             .optJSONArray("Items").toItems()
     }
 
+    fun item(context: Context, itemId: String): JellyfinItem {
+        val account = account(context) ?: throw JellyfinException("Jellyfin is not connected.")
+        val response = JSONObject(request(context, "/Users/" + encode(account.userId) + "/Items/" + encode(itemId),
+            mapOf("Fields" to "Overview,Genres,People,RunTimeTicks,UserData,ProductionYear,ImageTags,Taglines,CommunityRating,OfficialRating")))
+        return response.toItem() ?: throw JellyfinException("Jellyfin returned an invalid item.")
+    }
+
     fun search(context: Context, query: String, limit: Int = 30): List<JellyfinItem> {
         val account = account(context) ?: return emptyList()
         if (query.isBlank()) return emptyList()
@@ -195,16 +204,33 @@ object Jellyfin {
 
     private fun encode(value: String) = URLEncoder.encode(value, Charsets.UTF_8.name())
 
+    private fun JSONObject.toItem(): JellyfinItem? {
+        val data = optJSONObject("UserData")
+        val tags = optJSONArray("Taglines")
+        val tagline = tags?.optString(0)?.takeIf { it.isNotBlank() }
+        return JellyfinItem(
+            id = optString("Id"), name = optString("Name"), type = optString("Type"),
+            overview = optString("Overview"),
+            imageTag = optJSONObject("ImageTags")?.optString("Primary")?.takeIf { it.isNotBlank() },
+            year = optInt("ProductionYear").takeIf { it > 0 },
+            runTimeTicks = optLong("RunTimeTicks").takeIf { it > 0 },
+            played = data?.optBoolean("Played") == true,
+            playbackPositionTicks = data?.optLong("PlaybackPositionTicks") ?: 0L,
+            genres = optJSONArray("Genres").let { array ->
+                if (array == null) emptyList() else (0 until array.length()).mapNotNull { array.optString(it).takeIf(String::isNotBlank) }
+            },
+            tagline = tagline,
+            communityRating = optDouble("CommunityRating").takeIf { it > 0.0 },
+            officialRating = optString("OfficialRating").takeIf { it.isNotBlank() }
+        ).takeIf { it.id.isNotBlank() && it.name.isNotBlank() }
+    }
+
     private fun JSONArray?.toItems(): List<JellyfinItem> {
         val array = this ?: return emptyList()
         return (0 until array.length()).mapNotNull { index ->
             val item = array.optJSONObject(index) ?: return@mapNotNull null
             val data = item.optJSONObject("UserData")
-            JellyfinItem(item.optString("Id"), item.optString("Name"), item.optString("Type"),
-                item.optString("Overview"), item.optJSONObject("ImageTags")?.optString("Primary")?.takeIf { it.isNotBlank() },
-                item.optInt("ProductionYear").takeIf { it > 0 }, item.optLong("RunTimeTicks").takeIf { it > 0 },
-                data?.optBoolean("Played") == true, data?.optLong("PlaybackPositionTicks") ?: 0L)
-                .takeIf { it.id.isNotBlank() && it.name.isNotBlank() }
+            item.toItem()
         }
     }
 }
