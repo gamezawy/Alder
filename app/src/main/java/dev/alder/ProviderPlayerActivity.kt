@@ -312,6 +312,7 @@ class ProviderPlayerActivity : Screen() {
     }
 
     private fun openAspectOptions() {
+        progressHandler.removeCallbacks(hideControlsTask)
         val modes = listOf(
             getString(R.string.player_aspect_fit),
             getString(R.string.player_aspect_fill),
@@ -330,11 +331,12 @@ class ProviderPlayerActivity : Screen() {
             }
             playerView.resizeMode = resizeMode
             aspectButton.text = getString(R.string.player_aspect_ratio) + " · " + modes[index]
-            showControls()
+            showControls(focus = true)
         }
     }
 
     private fun openSpeedOptions() {
+        progressHandler.removeCallbacks(hideControlsTask)
         val speeds = listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f)
         val labels = speeds.map { speed -> if (speed == 1f) "1×" else "${speed}×" }
         val current = player?.playbackParameters?.speed ?: 1f
@@ -369,6 +371,7 @@ class ProviderPlayerActivity : Screen() {
     private fun openTrackOptions(type: Int) {
         val exo = player ?: return
         val choices = trackChoices(type)
+        if (choices.isNotEmpty()) progressHandler.removeCallbacks(hideControlsTask)
         if (type == C.TRACK_TYPE_TEXT) {
             if (choices.isEmpty()) {
                 choose(getString(R.string.tab_subtitles), listOf(getString(R.string.player_no_tracks))) {}
@@ -391,7 +394,7 @@ class ProviderPlayerActivity : Screen() {
                 }
                 exo.trackSelectionParameters = builder.build()
                 updateTrackButton()
-                showControls()
+                showControls(focus = true)
             }
         } else {
             val labels = choices.map { it.label }
@@ -407,7 +410,7 @@ class ProviderPlayerActivity : Screen() {
                     .build()
                 Settings.pickedInPlayer(this, seriesId ?: jellyfinItemId.orEmpty(),
                     audio = choice.format.language?.takeIf { it != "und" } ?: "")
-                showControls()
+                showControls(focus = true)
             }
         }
     }
