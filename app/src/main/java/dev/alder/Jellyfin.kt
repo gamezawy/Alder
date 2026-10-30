@@ -173,28 +173,31 @@ object Jellyfin {
         return JellyfinPlayback(itemId, sourceId, session, stream, direct)
     }
 
-    fun reportStarted(context: Context, itemId: String, mediaSourceId: String?, directPlay: Boolean) {
+    fun reportStarted(context: Context, itemId: String, mediaSourceId: String?, playSessionId: String?, directPlay: Boolean) {
         val account = account(context) ?: return
-        val body = JSONObject().put("ItemId", itemId).put("MediaSourceId", mediaSourceId ?: "")
-            .put("PlayMethod", if (directPlay) "DirectPlay" else "Transcode")
+        val body = JSONObject().put("ItemId", itemId).put("PlayMethod", if (directPlay) "DirectPlay" else "Transcode")
+            .put("CanSeek", true).put("IsPaused", false).put("PositionTicks", 0)
+        mediaSourceId?.let { body.put("MediaSourceId", it) }
+        playSessionId?.let { body.put("PlaySessionId", it) }
         Http.post(account.serverUrl + "/Sessions/Playing", body.toString(),
             headers = mapOf("X-Emby-Token" to account.accessToken, "Accept" to "application/json"))
     }
 
-    fun reportPlayback(context: Context, itemId: String, positionTicks: Long, paused: Boolean = false) {
+    fun reportPlayback(context: Context, itemId: String, positionTicks: Long, paused: Boolean = false, playSessionId: String? = null) {
         val account = account(context) ?: return
         val body = JSONObject().put("ItemId", itemId).put("PositionTicks", positionTicks).put("IsPaused", paused)
+        playSessionId?.let { body.put("PlaySessionId", it) }
         Http.post(account.serverUrl + "/Sessions/Playing/Progress", body.toString(),
             headers = mapOf("X-Emby-Token" to account.accessToken, "Accept" to "application/json"))
     }
 
-    fun reportStopped(context: Context, itemId: String, positionTicks: Long) {
+    fun reportStopped(context: Context, itemId: String, positionTicks: Long, playSessionId: String? = null) {
         val account = account(context) ?: return
         val body = JSONObject().put("ItemId", itemId).put("PositionTicks", positionTicks)
+        playSessionId?.let { body.put("PlaySessionId", it) }
         Http.post(account.serverUrl + "/Sessions/Playing/Stopped", body.toString(),
             headers = mapOf("X-Emby-Token" to account.accessToken, "Accept" to "application/json"))
     }
-
     fun imageUrl(context: Context, itemId: String, tag: String?, maxWidth: Int = 600): String? {
         val account = account(context) ?: return null
         if (tag.isNullOrBlank()) return null
