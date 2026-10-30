@@ -502,4 +502,25 @@
     <string name="profiles_watchly_steps">"1.  Watchly खोलने के लिए %1$s के फ़ोन से स्कैन करें\n2.  वहाँ %1$s का Stremio खाता कनेक्ट करें\n3.  इसे %1$s के Stremio खाते में इंस्टॉल करें\n\nइसके बाद %1$s के अपने टॉप पिक्स होम पर दिखेंगे। आप इसे बाद में भी पूरा कर सकते हैं।"</string>
     <string name="profiles_all_set">सब तैयार है</string>
     <string name="profiles_ready">%1$s की प्रोफ़ाइल तैयार है। आप बाद में सेटिंग में और ऐड-ऑन जोड़ सकते हैं।</string>
+    <string name="action_save">सहेजें</string>
+    <string name="provider_connecting">Jellyfin से कनेक्ट हो रहा है…</string>
+    <string name="provider_library">लाइब्रेरी</string>
+    <string name="provider_stremio">Stremio</string>
+    <string name="provider_live_tv">लाइव टीवी</string>
+    <string name="provider_search">खोजें</string>
+    <string name="provider_jellyfin_not_connected">Jellyfin कनेक्ट नहीं है। सेटिंग में सर्वर कनेक्ट करें।</string>
+    <string name="provider_jellyfin_offline">Jellyfin सर्वर उपलब्ध नहीं है। होम यहीं रहेगा; आप Stremio या लाइव टीवी खोल सकते हैं।</string>
+    <string name="provider_jellyfin_connected">Jellyfin से कनेक्ट · %1$s</string>
+    <string name="provider_no_libraries">कोई Jellyfin लाइब्रेरी नहीं मिली।</string>
+    <string name="provider_no_items">अभी दिखाने के लिए कुछ नहीं है।</string>
+    <string name="provider_retry">फिर कोशिश करें</string>
+    <string name="provider_offline_navigation">आप ऊपर के नेविगेशन से Stremio या लाइव टीवी खोल सकते हैं।</string>
+    <string name="provider_continue_watching">देखना जारी रखें</string>
+    <string name="provider_loading_library">Jellyfin लाइब्रेरी लोड हो रही है…</string>
+    <string name="iptv_loading">IPTV प्लेलिस्ट लोड हो रही है…</string>
+    <string name="iptv_playlist_settings">प्लेलिस्ट सेटिंग</string>
+    <string name="iptv_channel_count">%1$d चैनल</string>
+    <string name="iptv_load_failed">प्लेलिस्ट लोड नहीं हो सकी। पता जाँचें और फिर कोशिश करें।</string>
+    <string name="iptv_no_channels">इस समूह में कोई चैनल नहीं है।</string>
+    <string name="iptv_playlist_url_hint">M3U या M3U8 प्लेलिस्ट URL</string>
 </resources>
