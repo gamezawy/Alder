@@ -7,6 +7,7 @@ import java.security.MessageDigest
  * Jellyfin 12 disables deprecated X-Emby headers by default; keep them for older servers.
  */
 internal object JellyfinAuth {
+    private const val LEGACY_DEVICE_ID = "alder-android-tv"
     fun usesModernAuthorization(version: String?): Boolean {
         val major = Regex("""^\s*(\d+)""").find(version.orEmpty())?.groupValues?.getOrNull(1)?.toIntOrNull()
         // Unknown version: the standard Authorization scheme is supported by older Jellyfin releases too.
@@ -18,7 +19,7 @@ internal object JellyfinAuth {
         val deviceHash = MessageDigest.getInstance("SHA-256")
             .digest(username.trim().lowercase().toByteArray(Charsets.UTF_8))
             .take(8).joinToString("") { "%02x".format(it) }
-        val deviceId = "alder-android-tv-$deviceHash"
+        val deviceId = if (modern) "alder-android-tv-$deviceHash" else LEGACY_DEVICE_ID
         val value = "MediaBrowser Client=\"Alder\", Device=\"Android TV\", DeviceId=\"$deviceId\", Version=\"1\""
         return if (modern) mapOf("Authorization" to value) else mapOf("X-Emby-Authorization" to value)
     }
