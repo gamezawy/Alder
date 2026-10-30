@@ -533,7 +533,7 @@ class ProviderPlayerActivity : Screen() {
         val exo = player
         if (id != null && exo != null && !stoppedReported) {
             stoppedReported = true
-            Jellyfin.invalidateCache(applicationContext)
+            Jellyfin.invalidatePlaybackCache(applicationContext)
             val ticks = exo.currentPosition.coerceAtLeast(0L) * 10_000L
             Screen.pool.execute {
                 runCatching { Jellyfin.reportStopped(applicationContext, id, ticks, jellyfinPlaySessionId) }
