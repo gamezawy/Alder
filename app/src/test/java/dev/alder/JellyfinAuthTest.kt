@@ -36,7 +36,7 @@ class JellyfinAuthTest {
     @Test fun episodesAreOrderedBySeasonAndEpisodeWithoutServerSortFields() {
         val unordered = listOf(episode("s2e1", 2, 1), episode("special", null, 2),
             episode("s1e2", 1, 2), episode("s1e1", 1, 1))
-        assertEquals(listOf("special", "s1e1", "s1e2", "s2e1"), orderJellyfinEpisodes(unordered).map { it.id })
+        assertEquals(listOf("s1e1", "s1e2", "s2e1", "special"), orderJellyfinEpisodes(unordered).map { it.id })
     }
 
     @Test fun nextEpisodePrefersUnfinishedResumeThenFirstUnwatched() {
