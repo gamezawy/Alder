@@ -64,7 +64,13 @@ class JellyfinHomeActivity : Screen() {
         val entries = listOf(
             getString(R.string.tab_home) to { selectedPage = Page.HOME; selectedView = null; loadHome() },
             getString(R.string.provider_library) to { selectedPage = Page.LIBRARY; selectedView = null; loadLibrary() },
-            getString(R.string.provider_stremio) to { startActivity(Intent(this@JellyfinHomeActivity, MainActivity::class.java)) },
+            getString(R.string.provider_stremio) to {
+                val profile = Profiles.active(this@JellyfinHomeActivity)
+                if (profile != null && profile.authKey.isBlank()) {
+                    startActivity(Intent(this@JellyfinHomeActivity, ProfilesActivity::class.java)
+                        .putExtra("signIn", profile.id).putExtra("returnToStremio", true))
+                } else startActivity(Intent(this@JellyfinHomeActivity, MainActivity::class.java))
+            },
             getString(R.string.provider_live_tv) to { startActivity(Intent(this@JellyfinHomeActivity, IptvActivity::class.java)) },
             getString(R.string.provider_search) to { startActivity(Intent(this@JellyfinHomeActivity, ProviderSearchActivity::class.java)) },
             getString(R.string.menu_settings) to { startActivity(Intent(this@JellyfinHomeActivity, SettingsActivity::class.java)) }
