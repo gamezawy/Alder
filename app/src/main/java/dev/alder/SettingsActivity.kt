@@ -381,8 +381,8 @@ class SettingsActivity : Screen() {
         window.setBackgroundDrawable(null)
         setContentView(root)
         profileName.text = Profiles.active(this)?.name?.let { getString(R.string.settings_profile_name, it) } ?: ""
-        showGroup(Group.STREAMS)
-        groupViews[Group.STREAMS]?.post { groupViews[Group.STREAMS]?.requestFocus() }
+        showGroup(Group.SOURCES)
+        groupViews[Group.SOURCES]?.post { groupViews[Group.SOURCES]?.requestFocus() }
     }
 
     override fun onResume() {
@@ -731,7 +731,7 @@ class SettingsActivity : Screen() {
                         runCatching { Jellyfin.saveAccount(this, account) }
                             .onSuccess {
                                 dialog.dismiss()
-                                showGroup(Group.STREAMS)
+                                showGroup(Group.SOURCES)
                             }
                             .onFailure { error.text = it.message ?: getString(R.string.jellyfin_signin_failed) }
                     }.onFailure {
@@ -754,7 +754,7 @@ class SettingsActivity : Screen() {
             .setNegativeButton(R.string.action_cancel, null)
             .setPositiveButton(R.string.action_save) { _, _ ->
                 Iptv.setPlaylistUrl(this, input.text.toString())
-                showGroup(Group.STREAMS)
+                showGroup(Group.SOURCES)
             }.show()
     }
 
@@ -774,7 +774,7 @@ class SettingsActivity : Screen() {
         dialog.setOnShowListener {
             dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 runCatching { Iptv.setXtream(this, server.text.toString(), username.text.toString(), password.text.toString()) }
-                    .onSuccess { dialog.dismiss(); showGroup(Group.STREAMS) }
+                    .onSuccess { dialog.dismiss(); showGroup(Group.SOURCES) }
                     .onFailure { error.text = it.message ?: getString(R.string.iptv_load_failed) }
             }
         }
