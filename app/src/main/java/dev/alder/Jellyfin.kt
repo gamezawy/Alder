@@ -139,6 +139,16 @@ object Jellyfin {
             .optJSONArray("Items").toItems()
     }
 
+    fun itemsByIds(context: Context, ids: Set<String>): List<JellyfinItem> {
+        val account = account(context) ?: return emptyList()
+        if (ids.isEmpty()) return emptyList()
+        return ids.toList().chunked(50).flatMap { batch ->
+            val response = JSONObject(request(context, "/Users/" + encode(account.userId) + "/Items",
+                mapOf("Ids" to batch.joinToString(","), "Fields" to "Overview,RunTimeTicks,UserData,ProductionYear,ImageTags")))
+            response.optJSONArray("Items").toItems()
+        }
+    }
+
     fun latestItems(context: Context, parentId: String, limit: Int = 20): List<JellyfinItem> {
         val account = account(context) ?: return emptyList()
         return JSONArray(request(context, "/Users/" + encode(account.userId) + "/Items/Latest",
