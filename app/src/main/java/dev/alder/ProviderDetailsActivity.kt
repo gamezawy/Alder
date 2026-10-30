@@ -102,11 +102,17 @@ class ProviderDetailsActivity : Screen() {
                 refrost()
             }
         }
-        val title = text(loaded.name, SERIF_HERO, serif = true).onArt().apply {
+        val isEpisode = loaded.type.equals("Episode", true)
+        val displayTitle = if (isEpisode) loaded.seriesName?.takeIf { it.isNotBlank() } ?: loaded.name else loaded.name
+        val title = text(displayTitle, SERIF_HERO, serif = true).onArt().apply {
             maxLines = 2
             ellipsize = android.text.TextUtils.TruncateAt.END
         }
         val facts = listOfNotNull(
+            if (isEpisode) listOfNotNull(
+                loaded.seasonNumber?.let { "S%02d".format(it) },
+                loaded.episodeNumber?.let { "E%02d".format(it) }
+            ).joinToString(" ").takeIf { it.isNotBlank() } else null,
             loaded.year?.toString(),
             loaded.officialRating,
             loaded.communityRating?.let { String.format(Locale.US, "%.1f", it) },
@@ -114,6 +120,14 @@ class ProviderDetailsActivity : Screen() {
         ).joinToString("   ·   ")
         val stack = column(Gravity.START)
         stack.addView(title)
+        if (isEpisode && !loaded.seriesName.isNullOrBlank()) {
+            val episodeLabel = listOfNotNull(
+                loaded.seasonNumber?.let { "S%02d".format(it) },
+                loaded.episodeNumber?.let { "E%02d".format(it) },
+                loaded.name
+            ).joinToString("  ·  ")
+            stack.addView(text(episodeLabel, BODY, color = TEXT_2).onArt().marginTop(8))
+        }
         if (loaded.tagline?.isNotBlank() == true) {
             stack.addView(text(loaded.tagline, BODY, color = TEXT_2).onArt().marginTop(8))
         }
