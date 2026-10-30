@@ -155,6 +155,16 @@
     <string name="skip_recap">Skip recap</string>
     <string name="player_paused">Paused</string>
     <string name="player_seek">Seek</string>
+    <string name="player_now_playing">Now playing</string>
+    <string name="player_rewind_10">−10 sec</string>
+    <string name="player_forward_10">+10 sec</string>
+    <string name="player_audio">Audio</string>
+    <string name="player_aspect_ratio">Aspect ratio</string>
+    <string name="player_aspect_fit">Fit</string>
+    <string name="player_aspect_fill">Stretch</string>
+    <string name="player_aspect_zoom">Zoom</string>
+    <string name="player_subtitles_on">Subtitles</string>
+    <string name="player_no_tracks">No tracks available</string>
     <string name="player_audio_subtitles">Audio &amp; subtitles</string>
     <string name="player_change_stream">Change stream</string>
     <string name="player_pause">Pause</string>
