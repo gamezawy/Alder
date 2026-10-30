@@ -16,6 +16,7 @@ class IptvActivity : Screen() {
     private lateinit var list: LinearLayout
     private var playlist = IptvPlaylist(emptyList())
     private var selectedGroup = ""
+    private var playlistDialog: AlertDialog? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -138,6 +139,7 @@ class IptvActivity : Screen() {
     }
 
     private fun editPlaylist() {
+        val layout = column(Gravity.START)
         val input = EditText(this).apply {
             hint = getString(R.string.iptv_playlist_url_hint)
             setSingleLine()
@@ -145,14 +147,40 @@ class IptvActivity : Screen() {
             setText(Iptv.playlistUrl(this@IptvActivity))
             setSelection(text.length)
         }
-        AlertDialog.Builder(this)
+        layout.addView(input)
+        layout.addView(action(getString(R.string.iptv_browse_file)) {
+            startActivityForResult(Iptv.playlistPickerIntent(), REQUEST_PLAYLIST_FILE)
+        })
+        val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.iptv_playlist_settings)
-            .setView(input)
+            .setView(layout)
             .setNegativeButton(R.string.action_cancel, null)
             .setPositiveButton(R.string.action_save) { _, _ ->
                 Iptv.setPlaylistUrl(this, input.text.toString())
                 loadPlaylist()
             }
-            .show()
+            .create()
+        playlistDialog = dialog
+        dialog.show()
+    }
+
+    @Deprecated("Use the document picker result contract")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != REQUEST_PLAYLIST_FILE || resultCode != RESULT_OK) return
+        val uri = data?.data ?: return
+        runCatching {
+            contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            Iptv.setPlaylistFile(this, uri)
+        }.onSuccess {
+            playlistDialog?.dismiss()
+            loadPlaylist()
+        }.onFailure {
+            status.text = it.message ?: getString(R.string.iptv_load_failed)
+        }
+    }
+
+    private companion object {
+        const val REQUEST_PLAYLIST_FILE = 7301
     }
 }
