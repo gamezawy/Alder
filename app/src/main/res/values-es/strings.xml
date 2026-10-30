@@ -532,4 +532,5 @@
     <string name="iptv_playlist_url_hint">URL de lista M3U o M3U8</string>
     <string name="searching_providers">Buscando en Jellyfin y Stremio…</string>
     <string name="search_provider_results">%1$d resultados entre tus proveedores</string>
+    <string name="provider_jellyfin_home">Jellyfin</string>
 </resources>
