@@ -553,4 +553,12 @@
     <string name="iptv_password">Xtream password</string>
     <string name="iptv_xtream">Xtream Codes</string>
     <string name="iptv_xtream_hint">Connect an Xtream Codes provider using its server address and login.</string>
+    <string name="watch_status_title">Set watch status</string>
+    <string name="watch_status_none">No status</string>
+    <string name="watch_status_favorite">Favorites</string>
+    <string name="watch_status_watching">Watching</string>
+    <string name="watch_status_on_hold">On Hold</string>
+    <string name="watch_status_dropped">Dropped</string>
+    <string name="watch_status_watched">Watched</string>
+    <string name="iptv_favorites">Favorites</string>
 </resources>
