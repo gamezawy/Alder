@@ -72,7 +72,7 @@ class ProviderPlayerActivity : Screen() {
             exo.addListener(object : Player.Listener {
                 override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                     android.widget.Toast.makeText(this@ProviderPlayerActivity,
-                        getString(R.string.player_error), android.widget.Toast.LENGTH_LONG).show()
+                        getString(R.string.player_source_failed), android.widget.Toast.LENGTH_LONG).show()
                 }
             })
         }
