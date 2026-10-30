@@ -6,6 +6,7 @@ import android.text.InputType
 import android.view.Gravity
 import android.view.View
 import android.widget.EditText
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -87,10 +88,21 @@ class IptvActivity : Screen() {
             else -> playlist.inGroup(selectedGroup)
         }
         channels.forEach { channel ->
-            val row = text(channel.name, BODY, color = TEXT).apply {
-                setPadding(dp(12), dp(12), dp(12), dp(12))
+            val row = LinearLayout(this).apply {
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(12), dp(8), dp(12), dp(8))
+                background = glass(8)
                 isFocusable = true
                 rowFocus(8)
+                val logo = ImageView(this@IptvActivity).apply {
+                    scaleType = ImageView.ScaleType.FIT_CENTER
+                    setBackgroundColor(0x33222222)
+                }
+                addView(logo, LinearLayout.LayoutParams(dp(48), dp(40)))
+                Images.load(channel.logoUrl, logo, dp(96))
+                addView(text(channel.name, BODY, color = TEXT), LinearLayout.LayoutParams(0, -2, 1f).apply {
+                    marginStart = dp(14)
+                })
                 setOnClickListener {
                     startActivity(android.content.Intent(this@IptvActivity, ProviderPlayerActivity::class.java)
                         .putExtra("streamUrl", channel.streamUrl)
@@ -100,7 +112,7 @@ class IptvActivity : Screen() {
                 }
             }
             row.setOnLongClickListener { setWatchStatus(channel); true }
-            list.addView(row, LinearLayout.LayoutParams(-1, -2))
+            list.addView(row, LinearLayout.LayoutParams(-1, dp(58)).apply { topMargin = dp(4) })
         }
         if (channels.isEmpty()) list.addView(text(getString(R.string.iptv_no_channels), BODY, color = TEXT_2))
     }
