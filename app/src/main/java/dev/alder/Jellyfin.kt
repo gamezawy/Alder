@@ -4,7 +4,13 @@ import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.URLEncoder
+import java.net.DatagramPacket
+import java.net.DatagramSocket
+import java.net.InetAddress
+import java.net.NetworkInterface
+import java.net.SocketTimeoutException
 
+data class JellyfinServer(val address: String, val name: String, val id: String)
 data class JellyfinAccount(val serverUrl: String, val accessToken: String, val userId: String, val username: String)
 data class JellyfinItem(
     val id: String, val name: String, val type: String, val overview: String,
@@ -71,6 +77,46 @@ object Jellyfin {
             "The server address must not contain credentials, a query, or a fragment."
         }
         return uri.toASCIIString().trimEnd('/')
+    }
+
+    fun discoverServers(timeoutMs: Long = 3_500): List<JellyfinServer> {
+        val found = linkedMapOf<String, JellyfinServer>()
+        DatagramSocket().use { socket ->
+            socket.broadcast = true
+            socket.soTimeout = 300
+            val message = "Who is JellyfinServer?".toByteArray(Charsets.UTF_8)
+            val broadcasts = linkedSetOf(InetAddress.getByName("255.255.255.255"))
+            runCatching {
+                val interfaces = NetworkInterface.getNetworkInterfaces()
+                while (interfaces.hasMoreElements()) {
+                    val network = interfaces.nextElement()
+                    if (!network.isUp || network.isLoopback) continue
+                    network.interfaceAddresses.mapNotNullTo(broadcasts) { it.broadcast }
+                }
+            }
+            broadcasts.forEach { address ->
+                runCatching { socket.send(DatagramPacket(message, message.size, address, 7359)) }
+            }
+            val deadline = System.nanoTime() + timeoutMs.coerceIn(500, 10_000) * 1_000_000
+            while (System.nanoTime() < deadline) {
+                val buffer = ByteArray(8_192)
+                val packet = DatagramPacket(buffer, buffer.size)
+                try {
+                    socket.receive(packet)
+                } catch (_: SocketTimeoutException) {
+                    continue
+                }
+                val payload = String(packet.data, packet.offset, packet.length, Charsets.UTF_8)
+                val server = runCatching {
+                    val json = JSONObject(payload)
+                    val address = json.optString("Address").ifBlank { "http://${packet.address.hostAddress}:8096" }
+                    JellyfinServer(normalizeServerUrl(address),
+                        json.optString("Name").ifBlank { "Jellyfin" }, json.optString("Id"))
+                }.getOrNull() ?: continue
+                found.putIfAbsent(server.address, server)
+            }
+        }
+        return found.values.sortedBy { it.name.lowercase() }
     }
 
     fun authenticate(serverUrl: String, username: String, password: String): JellyfinAccount {
