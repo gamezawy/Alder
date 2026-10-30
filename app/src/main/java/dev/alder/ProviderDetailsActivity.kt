@@ -26,6 +26,7 @@ class ProviderDetailsActivity : Screen() {
     private lateinit var playAction: TextView
     private var episodesAction: TextView? = null
     private var episodesUnavailable = false
+    private var episodesLoaded = false
     private lateinit var guide: FrameLayout
     private lateinit var guideRows: LinearLayout
     private var guideOpen = false
@@ -142,10 +143,12 @@ class ProviderDetailsActivity : Screen() {
             if (isFinishing || isDestroyed) return@background
             result.onSuccess { episodes ->
                 loadedEpisodes = episodes
+                episodesLoaded = true
                 episodesUnavailable = false
                 buildGuide(episodes)
             }.onFailure {
                 loadedEpisodes = emptyList()
+                episodesLoaded = true
                 episodesUnavailable = true
                 buildGuide(emptyList())
             }
@@ -231,6 +234,11 @@ class ProviderDetailsActivity : Screen() {
     private fun playSelected(selected: JellyfinItem) {
         if (!selected.type.equals("Series", true)) {
             playItem(selected, selected.seriesName ?: selected.name, selected.seriesId)
+            return
+        }
+        if (!episodesLoaded) {
+            android.widget.Toast.makeText(this, getString(R.string.provider_loading_episodes),
+                android.widget.Toast.LENGTH_SHORT).show()
             return
         }
         val episode = nextJellyfinEpisode(loadedEpisodes)
