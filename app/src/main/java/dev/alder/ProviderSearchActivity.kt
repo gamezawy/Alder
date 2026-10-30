@@ -12,7 +12,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 import java.util.Locale
 
-private data class ProviderSearchHit(
+internal data class ProviderSearchHit(
     val provider: String,
     val title: String,
     val subtitle: String,
