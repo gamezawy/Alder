@@ -1,164 +1,249 @@
 package dev.alder
 
 import android.content.Intent
-import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
+import android.widget.TextClock
 import android.widget.TextView
+import java.util.Locale
 
+/**
+ * Jellyfin title details drawn in Alder's original full-bleed cinema language. The provider changes the data source,
+ * not the visual identity: the same artwork treatment, type scale, glass actions and episode-guide behaviour.
+ */
 class ProviderDetailsActivity : Screen() {
     private var item: JellyfinItem? = null
     private var loadedEpisodes: List<JellyfinItem> = emptyList()
-    private lateinit var status: TextView
-    private lateinit var poster: ImageView
-    private lateinit var actions: LinearLayout
-    private lateinit var episodesPanel: LinearLayout
+    private lateinit var heroArt: ImageView
+    private lateinit var hero: FrameLayout
+    private lateinit var root: FrameLayout
     private lateinit var playAction: TextView
+    private lateinit var guide: FrameLayout
+    private lateinit var guideRows: LinearLayout
+    private var guideOpen = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val itemId = intent.getStringExtra("jellyfinItemId").orEmpty()
         if (itemId.isBlank()) { finish(); return }
-        val root = FrameLayout(this).apply {
-            background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                intArrayOf(0xFF211A15.toInt(), BASE, BASE))
+
+        heroArt = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; alpha = 0f }
+        hero = FrameLayout(this).apply { clipChildren = false; clipToPadding = false }
+        root = FrameLayout(this).apply {
+            clipChildren = false
+            addView(hero, FrameLayout.LayoutParams(-1, -1))
+            addView(TextClock(this@ProviderDetailsActivity).apply {
+                format12Hour = "h:mm a"
+                format24Hour = "HH:mm"
+                textSize = SMALL
+                setTextColor(TEXT_2)
+                typeface = text("", SMALL).typeface
+            }, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.END).apply {
+                topMargin = dp(36); rightMargin = dp(PAD)
+            })
         }
-        val layout = LinearLayout(this).apply {
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(48), dp(34), dp(48), dp(34))
+        setWindowed(root, heroArt)
+
+        (Jellyfin.backdropUrl(this, itemId, 1800) ?: Jellyfin.imageUrl(this, itemId, null, 1400))?.let { url ->
+            Images.load(url, heroArt, resources.displayMetrics.widthPixels, urgent = true) {
+                heroArt.animate().alpha(1f).setDuration(250).start()
+                refrost()
+            }
         }
-        poster = ImageView(this).apply {
-            scaleType = ImageView.ScaleType.CENTER_CROP
-            setBackgroundColor(0x33222222)
-        }
-        layout.addView(poster, LinearLayout.LayoutParams(dp(250), dp(370)))
-        val details = column(Gravity.START).apply {
-            setPadding(dp(34), 0, 0, 0)
-        }
-        status = text(getString(R.string.provider_connecting), SMALL, color = TEXT_2)
-        details.addView(status)
-        actions = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        val scroll = ScrollView(this).apply {
-            isVerticalScrollBarEnabled = false
-            addView(details)
-        }
-        layout.addView(scroll, LinearLayout.LayoutParams(0, dp(420), 1f))
-        root.addView(layout, FrameLayout.LayoutParams(-1, -1))
-        setContentView(root)
 
         background({ Jellyfin.item(applicationContext, itemId) }) { result ->
+            if (isFinishing || isDestroyed) return@background
             result.onSuccess { loaded ->
                 item = loaded
-                status.text = listOfNotNull(
-                    loaded.year?.toString(),
-                    loaded.officialRating,
-                    loaded.communityRating?.let { String.format(java.util.Locale.US, "%.1f", it) },
-                    loaded.genres.take(3).joinToString(" · ").takeIf { it.isNotBlank() }
-                ).joinToString("   ·   ")
-                details.removeAllViews()
-                details.addView(text(loaded.name, SERIF_HERO, serif = true).onArt().apply { maxLines = 2 })
-                if (loaded.tagline != null) details.addView(text(loaded.tagline, BODY, color = TEXT_2).marginTop(10))
-                if (status.text.isNotBlank()) details.addView(text(status.text.toString(), SMALL, color = TEXT_2).marginTop(12))
-                if (loaded.overview.isNotBlank()) details.addView(text(loaded.overview, BODY, color = TEXT).apply {
-                    setLineSpacing(dp(3).toFloat(), 1f)
-                }.marginTop(18))
-                details.addView(actions, LinearLayout.LayoutParams(-1, dp(54)).apply { topMargin = dp(24) })
-                actions.removeAllViews()
-                playAction = action(getString(R.string.action_play)) { playSelected(loaded) }
-                actions.addView(playAction)
-                if (loaded.type.equals("Series", true)) {
-                    episodesPanel = column(Gravity.START)
-                    details.addView(episodesPanel, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(20) })
-                    playAction.isEnabled = false
-                    playAction.alpha = 0.45f
-                    loadEpisodes(loaded)
-                }
-                actions.addView(action(getString(R.string.watch_status_title)) { chooseStatus(loaded) }.apply {
-                    layoutParams = LinearLayout.LayoutParams(-2, dp(44)).apply { marginStart = dp(12) }
-                })
-                Images.load(Jellyfin.imageUrl(this, loaded.id, loaded.imageTag, 800), poster, dp(500))
-                actions.getChildAt(0)?.requestFocus()
+                showHero(loaded)
+                if (loaded.type.equals("Series", true)) loadEpisodes(loaded)
             }.onFailure {
-                status.text = getString(R.string.provider_jellyfin_offline)
+                hero.removeAllViews()
+                val message = column(Gravity.START).apply {
+                    addView(text(R.string.provider_jellyfin_offline, BODY, color = TEXT))
+                    addView(pill(R.string.provider_retry).apply {
+                        setOnClickListener { recreate() }
+                    }.marginTop(14))
+                }
+                hero.addView(message, FrameLayout.LayoutParams(dp(520), -2, Gravity.BOTTOM or Gravity.START).apply {
+                    leftMargin = dp(PAD); bottomMargin = dp(90)
+                })
             }
         }
     }
 
+    private fun showHero(loaded: JellyfinItem) {
+        hero.removeAllViews()
+        val title = text(loaded.name, SERIF_HERO, serif = true).onArt().apply {
+            maxLines = 2
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        }
+        val facts = listOfNotNull(
+            loaded.year?.toString(),
+            loaded.officialRating,
+            loaded.communityRating?.let { String.format(Locale.US, "%.1f", it) },
+            loaded.genres.take(3).joinToString(" · ").takeIf { it.isNotBlank() }
+        ).joinToString("   ·   ")
+        val stack = column(Gravity.START)
+        stack.addView(title)
+        if (loaded.tagline?.isNotBlank() == true) {
+            stack.addView(text(loaded.tagline, BODY, color = TEXT_2).onArt().marginTop(8))
+        }
+        if (facts.isNotBlank()) stack.addView(text(facts, SMALL, color = TEXT_2).onArt().marginTop(12))
+        if (loaded.overview.isNotBlank()) {
+            stack.addView(text(loaded.overview, BODY, color = TEXT).onArt().apply {
+                maxLines = 3
+                ellipsize = android.text.TextUtils.TruncateAt.END
+                setLineSpacing(dp(3).toFloat(), 1f)
+            }, LinearLayout.LayoutParams(dp(500), -2).apply { topMargin = dp(10) })
+        }
+
+        val buttons = LinearLayout(this).apply {
+            gravity = Gravity.CENTER_VERTICAL
+            clipChildren = false
+            clipToPadding = false
+        }
+        playAction = pill(R.string.action_play, R.drawable.ic_play).apply {
+            setOnClickListener { playSelected(loaded) }
+        }
+        buttons.addView(playAction, wrap().apply { marginEnd = dp(10) })
+        if (loaded.type.equals("Series", true)) {
+            buttons.addView(pill(R.string.provider_episodes).apply {
+                setOnClickListener { if (loadedEpisodes.isNotEmpty()) showGuide() }
+            }, wrap().apply { marginEnd = dp(10) })
+            playAction.isEnabled = false
+            playAction.alpha = 0.55f
+        }
+        buttons.addView(pill(R.string.watch_status_title).apply {
+            setOnClickListener { chooseStatus(loaded) }
+        })
+        stack.addView(buttons, wrap().apply { topMargin = dp(20) })
+        hero.addView(stack, FrameLayout.LayoutParams(dp(560), -2, Gravity.BOTTOM or Gravity.START).apply {
+            leftMargin = dp(PAD)
+            bottomMargin = dp(86)
+        })
+        playAction.requestFocus()
+    }
+
     private fun loadEpisodes(series: JellyfinItem) {
-        episodesPanel.removeAllViews()
-        episodesPanel.addView(caps(R.string.provider_episodes, TUNGSTEN))
-        episodesPanel.addView(text(getString(R.string.provider_loading_episodes), SMALL, color = TEXT_2).marginTop(8))
         background({ Jellyfin.episodes(applicationContext, series.id) }) { result ->
             if (isFinishing || isDestroyed) return@background
             result.onSuccess { episodes ->
                 loadedEpisodes = episodes
-                episodesPanel.removeAllViews()
-                episodesPanel.addView(caps(R.string.provider_episodes, TUNGSTEN))
-                if (episodes.isEmpty()) {
-                    episodesPanel.addView(text(getString(R.string.provider_no_episodes), SMALL, color = TEXT_2).marginTop(8))
-                    return@onSuccess
-                }
-                playAction.isEnabled = true
-                playAction.alpha = 1f
-                episodes.groupBy { it.seasonNumber ?: 0 }.toSortedMap().forEach { (season, seasonEpisodes) ->
-                    val heading = if (season > 0) getString(R.string.provider_season_number, season) else getString(R.string.provider_specials)
-                    episodesPanel.addView(text(heading, BODY, color = TEXT).marginTop(16))
-                    seasonEpisodes.forEach { episode ->
-                        val number = episode.episodeNumber?.let { String.format(java.util.Locale.ROOT, "%02d", it) }
-                        val prefix = listOfNotNull(season.takeIf { it > 0 }?.let { "S%02d".format(it) }, number?.let { "E$it" }).joinToString("")
-                        val label = listOfNotNull(prefix.takeIf { it.isNotBlank() }, episode.name).joinToString("  ·  ")
-                        val row = text(label, SMALL, color = if (episode.played) TEXT_3 else TEXT).apply {
-                            setPadding(dp(12), dp(10), dp(12), dp(10))
-                            isFocusable = true
-                            rowFocus(8)
-                            setOnClickListener { playEpisode(series, episode) }
-                        }
-                        episodesPanel.addView(row, LinearLayout.LayoutParams(-1, -2))
-                    }
-                }
+                playAction.isEnabled = episodes.isNotEmpty()
+                playAction.alpha = if (episodes.isNotEmpty()) 1f else 0.55f
+                buildGuide(episodes)
             }.onFailure {
-                episodesPanel.removeAllViews()
-                episodesPanel.addView(text(getString(R.string.provider_episodes_unavailable), SMALL, color = TEXT_2))
+                loadedEpisodes = emptyList()
+                playAction.isEnabled = false
+                playAction.alpha = 0.55f
+                buildGuide(emptyList())
             }
         }
     }
 
-    private fun playSelected(selected: JellyfinItem) {
-        if (!selected.type.equals("Series", true)) {
-            val isEpisode = selected.type.equals("Episode", true)
-            startActivity(Intent(this, ProviderPlayerActivity::class.java)
-                .putExtra("jellyfinItemId", selected.id)
-                .putExtra("title", selected.seriesName ?: selected.name)
-                .putExtra("episodeTitle", if (isEpisode) listOfNotNull(selected.seasonNumber?.let { "S%02d".format(it) }, selected.episodeNumber?.let { "E%02d".format(it) }, selected.name).joinToString("  ·  ") else "")
-                .putExtra("seriesId", selected.seriesId)
-                .putExtra("resumeAtMs", selected.playbackPositionTicks / 10_000L))
+    private fun buildGuide(episodes: List<JellyfinItem>) {
+        if (::guide.isInitialized) root.removeView(guide)
+        guideOpen = false
+        guideRows = column(Gravity.START)
+        guide = FrameLayout(this).apply {
+            background = glassOver(this, 16, shade = FROST_DENSE)
+            clipToOutline = true
+            outlineProvider = object : android.view.ViewOutlineProvider() {
+                override fun getOutline(view: View, outline: android.graphics.Outline) {
+                    outline.setRoundRect(0, 0, view.width, view.height, dp(16).toFloat())
+                }
+            }
+            visibility = View.GONE
+        }
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(24), dp(20), dp(24), dp(20))
+            addView(caps(R.string.provider_episodes, TUNGSTEN))
+            addView(text(item?.name.orEmpty(), SERIF_TITLE, serif = true).apply {
+                maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
+            }.marginTop(8))
+            addView(ScrollView(this@ProviderDetailsActivity).apply {
+                isVerticalScrollBarEnabled = false
+                addView(guideRows)
+            }, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(14) })
+        }
+        guide.addView(panel, FrameLayout.LayoutParams(-1, -1))
+        val width = minOf(dp(760), resources.displayMetrics.widthPixels - dp(PAD * 2))
+        root.addView(guide, FrameLayout.LayoutParams(width, -1, Gravity.END or Gravity.CENTER_VERTICAL).apply {
+            topMargin = dp(86); bottomMargin = dp(30); rightMargin = dp(PAD)
+        })
+
+        if (episodes.isEmpty()) {
+            guideRows.addView(text(R.string.provider_no_episodes, BODY, color = TEXT_2).marginTop(12))
             return
         }
-        val episode = loadedEpisodes.firstOrNull { it.playbackPositionTicks > 0L && !it.played }
-            ?: loadedEpisodes.firstOrNull { !it.played }
-            ?: loadedEpisodes.firstOrNull()
-        if (episode != null) playEpisode(selected, episode)
+        episodes.groupBy { it.seasonNumber ?: 0 }.toSortedMap().forEach { (season, seasonEpisodes) ->
+            val heading = if (season > 0) getString(R.string.provider_season_number, season)
+                else getString(R.string.provider_specials)
+            guideRows.addView(text(heading, BODY, color = TEXT).marginTop(12))
+            seasonEpisodes.forEach { episode ->
+                val prefix = listOfNotNull(
+                    episode.seasonNumber?.let { "S%02d".format(it) },
+                    episode.episodeNumber?.let { "E%02d".format(it) }
+                ).joinToString("")
+                val label = listOfNotNull(prefix.takeIf { it.isNotBlank() }, episode.name).joinToString("  ·  ")
+                val row = text(label, SMALL, color = if (episode.played) TEXT_3 else TEXT).apply {
+                    setPadding(dp(12), dp(12), dp(12), dp(12))
+                    isFocusable = true
+                    rowFocus(8)
+                    setOnClickListener { playEpisode(item ?: return@setOnClickListener, episode) }
+                }
+                guideRows.addView(row, LinearLayout.LayoutParams(-1, -2))
+            }
+        }
+    }
+
+    private fun showGuide() {
+        if (!::guide.isInitialized || loadedEpisodes.isEmpty()) return
+        guideOpen = true
+        guide.visibility = View.VISIBLE
+        guideRows.getChildAt(1)?.requestFocus()
+            ?: guideRows.getChildAt(0)?.requestFocus()
+    }
+
+    private fun hideGuide() {
+        guideOpen = false
+        guide.visibility = View.GONE
+        if (::playAction.isInitialized) playAction.requestFocus()
+    }
+
+    private fun playSelected(selected: JellyfinItem) {
+        if (!selected.type.equals("Series", true)) {
+            playItem(selected, selected.seriesName ?: selected.name, selected.seriesId)
+            return
+        }
+        nextJellyfinEpisode(loadedEpisodes)?.let { playEpisode(selected, it) }
     }
 
     private fun playEpisode(series: JellyfinItem, episode: JellyfinItem) {
-        startActivity(Intent(this, ProviderPlayerActivity::class.java)
-            .putExtra("jellyfinItemId", episode.id)
-            .putExtra("title", series.name)
-            .putExtra("seriesId", series.id)
-            .putExtra("episodeTitle", listOfNotNull(episode.seasonNumber?.let { "S%02d".format(it) }, episode.episodeNumber?.let { "E%02d".format(it) }, episode.name).joinToString("  ·  "))
-            .putExtra("resumeAtMs", episode.playbackPositionTicks / 10_000L))
+        val episodeTitle = listOfNotNull(
+            episode.seasonNumber?.let { "S%02d".format(it) },
+            episode.episodeNumber?.let { "E%02d".format(it) },
+            episode.name
+        ).joinToString("  ·  ")
+        playItem(episode, series.name, series.id, episodeTitle)
     }
 
-    private fun action(label: String, click: () -> Unit) = text(label, BODY, color = TUNGSTEN).apply {
-        setPadding(dp(16), dp(10), dp(16), dp(10))
-        isFocusable = true
-        rowFocus(8)
-        setOnClickListener { click() }
+    private fun playItem(selected: JellyfinItem, title: String, seriesId: String?, episodeTitle: String = "") {
+        startActivity(Intent(this, ProviderPlayerActivity::class.java)
+            .putExtra("jellyfinItemId", selected.id)
+            .putExtra("title", title)
+            .putExtra("episodeTitle", episodeTitle)
+            .putExtra("seriesId", seriesId)
+            .putExtra("resumeAtMs", selected.playbackPositionTicks / 10_000L))
     }
 
     private fun chooseStatus(loaded: JellyfinItem) {
@@ -177,5 +262,13 @@ class ProviderDetailsActivity : Screen() {
             checked = WatchStatuses.get(this, "jellyfin", loaded.id).ordinal) { index ->
             WatchStatuses.set(this, "jellyfin", loaded.id, statuses[index])
         }
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (guideOpen && event.action == KeyEvent.ACTION_DOWN && event.keyCode == KeyEvent.KEYCODE_BACK) {
+            hideGuide()
+            return true
+        }
+        return super.dispatchKeyEvent(event)
     }
 }
