@@ -8,6 +8,7 @@ import android.os.Looper
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
+import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.SeekBar
@@ -43,6 +44,7 @@ class ProviderPlayerActivity : Screen() {
     private lateinit var playPause: TextView
     private lateinit var subtitleButton: TextView
     private lateinit var aspectButton: TextView
+    private lateinit var speedButton: TextView
     private var jellyfinItemId: String? = null
     private var seriesId: String? = null
     private var jellyfinPlaySessionId: String? = null
@@ -113,7 +115,7 @@ class ProviderPlayerActivity : Screen() {
             subtitleView?.setStyle(CaptionStyleCompat(Settings.subtitleColor(context),
                 if (Settings.subtitleBackground(context)) 0xB3000000.toInt() else Color.TRANSPARENT,
                 Color.TRANSPARENT, CaptionStyleCompat.EDGE_TYPE_DROP_SHADOW, Color.BLACK, null))
-            setOnClickListener { showControls() }
+            setOnClickListener { showControls(focus = true) }
         }
         controls = buildControls(title, episodeTitle)
         root = FrameLayout(this).apply {
@@ -122,6 +124,7 @@ class ProviderPlayerActivity : Screen() {
             addView(controls, FrameLayout.LayoutParams(-1, -1))
         }
         setContentView(root)
+        playPause.post { if (!isFinishing && !isDestroyed) playPause.requestFocus() }
 
         player = ExoPlayer.Builder(this).setMediaSourceFactory(mediaSourceFactory).build().also { exo ->
             playerView.player = exo
@@ -183,13 +186,18 @@ class ProviderPlayerActivity : Screen() {
             background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
                 intArrayOf(0x00000000, 0x66000000, 0xD90E0C0A.toInt()))
             isFocusable = false
+            clipChildren = false
+            clipToPadding = false
         }
         val heading = column(Gravity.START).apply {
             addView(caps(R.string.player_now_playing, TUNGSTEN))
-            addView(text(title, SERIF_TITLE, serif = true).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END }.marginTop(4))
+            addView(text(title, SERIF_TITLE, serif = true).apply {
+                maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
+            }.marginTop(4))
             if (episodeTitle.isNotBlank()) addView(text(episodeTitle, SMALL, color = TEXT_2).marginTop(3))
         }
-        panel.addView(heading, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(16) })
+        panel.addView(heading, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(14) })
 
         val timeline = LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL
@@ -197,6 +205,7 @@ class ProviderPlayerActivity : Screen() {
             addView(SeekBar(this@ProviderPlayerActivity).apply {
                 max = 10_000
                 isFocusable = true
+                contentDescription = getString(R.string.player_seek)
                 progressTintList = android.content.res.ColorStateList.valueOf(TUNGSTEN)
                 thumbTintList = android.content.res.ColorStateList.valueOf(TEXT)
                 progressBackgroundTintList = android.content.res.ColorStateList.valueOf(0x66FFFFFF)
@@ -227,33 +236,51 @@ class ProviderPlayerActivity : Screen() {
         }
         panel.addView(timeline, LinearLayout.LayoutParams(-1, dp(38)))
 
-        val actions = LinearLayout(this).apply {
-            gravity = Gravity.CENTER
-            clipChildren = false
-            clipToPadding = false
-        }
-        fun add(label: String, primary: Boolean = false, action: () -> Unit): TextView {
+        fun addAction(target: LinearLayout, label: String, primary: Boolean = false, action: () -> Unit): TextView {
             val view = text(label, SMALL, bold = true, color = if (primary) BASE else TEXT).apply {
                 gravity = Gravity.CENTER
-                minWidth = dp(if (primary) 76 else 88)
-                setPadding(dp(14), dp(10), dp(14), dp(10))
+                minWidth = dp(if (primary) 88 else 104)
+                minHeight = dp(44)
+                setPadding(dp(14), dp(8), dp(14), dp(8))
                 background = if (primary) rounded(TUNGSTEN, 18) else glass(18)
                 isFocusable = true
                 rowFocus(18)
                 setOnClickListener { action() }
             }
-            actions.addView(view, LinearLayout.LayoutParams(-2, dp(44)).apply { marginStart = dp(7); marginEnd = dp(7) })
+            target.addView(view, LinearLayout.LayoutParams(-2, dp(46)).apply {
+                marginStart = dp(6); marginEnd = dp(6)
+            })
             return view
         }
-        add(getString(R.string.player_rewind_10)) { seekBy(-10_000L) }
-        playPause = add(getString(R.string.action_play), primary = true) {
+
+        val transport = LinearLayout(this).apply {
+            gravity = Gravity.CENTER
+            clipChildren = false
+            clipToPadding = false
+        }
+        addAction(transport, getString(R.string.player_rewind_10)) { seekBy(-10_000L) }
+        playPause = addAction(transport, getString(R.string.action_play), primary = true) {
             player?.let { if (it.isPlaying) it.pause() else it.play() }
         }
-        add(getString(R.string.player_forward_10)) { seekBy(10_000L) }
-        subtitleButton = add(getString(R.string.tab_subtitles)) { openTrackOptions(C.TRACK_TYPE_TEXT) }
-        add(getString(R.string.player_audio)) { openTrackOptions(C.TRACK_TYPE_AUDIO) }
-        aspectButton = add(getString(R.string.player_aspect_ratio)) { openAspectOptions() }
-        panel.addView(actions, LinearLayout.LayoutParams(-1, dp(52)).apply { topMargin = dp(8) })
+        addAction(transport, getString(R.string.player_forward_10)) { seekBy(10_000L) }
+        panel.addView(transport, LinearLayout.LayoutParams(-1, dp(50)).apply { topMargin = dp(8) })
+
+        val options = LinearLayout(this).apply {
+            gravity = Gravity.CENTER
+            clipChildren = false
+            clipToPadding = false
+        }
+        subtitleButton = addAction(options, getString(R.string.tab_subtitles)) { openTrackOptions(C.TRACK_TYPE_TEXT) }
+        addAction(options, getString(R.string.player_audio)) { openTrackOptions(C.TRACK_TYPE_AUDIO) }
+        aspectButton = addAction(options, getString(R.string.player_aspect_ratio)) { openAspectOptions() }
+        speedButton = addAction(options, "1×") { openSpeedOptions() }
+        val optionsScroll = HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            clipChildren = false
+            clipToPadding = false
+            addView(options, ViewGroup.LayoutParams(-2, -2))
+        }
+        panel.addView(optionsScroll, LinearLayout.LayoutParams(-1, dp(52)).apply { topMargin = dp(5) })
         return panel
     }
 
@@ -307,6 +334,18 @@ class ProviderPlayerActivity : Screen() {
         }
     }
 
+    private fun openSpeedOptions() {
+        val speeds = listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f)
+        val labels = speeds.map { speed -> if (speed == 1f) "1×" else "${speed}×" }
+        val current = player?.playbackParameters?.speed ?: 1f
+        val selected = speeds.indices.minByOrNull { kotlin.math.abs(speeds[it] - current) } ?: 2
+        choose(getString(R.string.player_speed), labels, checked = selected) { index ->
+            player?.setPlaybackSpeed(speeds[index])
+            speedButton.text = labels[index]
+            showControls(focus = true)
+        }
+    }
+
     private data class TrackChoice(val group: Tracks.Group, val index: Int, val format: Format, val label: String)
 
     private fun trackChoices(type: Int): List<TrackChoice> {
@@ -331,6 +370,10 @@ class ProviderPlayerActivity : Screen() {
         val exo = player ?: return
         val choices = trackChoices(type)
         if (type == C.TRACK_TYPE_TEXT) {
+            if (choices.isEmpty()) {
+                choose(getString(R.string.tab_subtitles), listOf(getString(R.string.player_no_tracks))) {}
+                return
+            }
             val labels = listOf(getString(R.string.subtitles_off)) + choices.map { it.label }
             val selected = if (C.TRACK_TYPE_TEXT in exo.trackSelectionParameters.disabledTrackTypes) 0
                 else choices.indexOfFirst { choice -> choice.group.isTrackSelected(choice.index) }.let { if (it < 0) 0 else it + 1 }
@@ -416,13 +459,23 @@ class ProviderPlayerActivity : Screen() {
         return "%d:%02d".format(Locale.ROOT, seconds / 60, seconds % 60)
     }
 
-    private fun showControls() {
+    private fun showControls(focus: Boolean = false) {
         controlsVisible = true
         controls.visibility = View.VISIBLE
         controls.animate().cancel()
         controls.alpha = 1f
         updateProgress()
+        if (focus || !hasControlsFocus()) playPause.requestFocus()
         if (player?.isPlaying == true) scheduleHide() else progressHandler.removeCallbacks(hideControlsTask)
+    }
+
+    private fun hasControlsFocus(): Boolean {
+        var view = currentFocus
+        while (view != null) {
+            if (view === controls) return true
+            view = view.parent as? View
+        }
+        return false
     }
 
     private fun scheduleHide() {
@@ -443,26 +496,27 @@ class ProviderPlayerActivity : Screen() {
             when (event.keyCode) {
                 KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
                     player?.let { if (it.isPlaying) it.pause() else it.play() }
-                    showControls()
+                    showControls(focus = true)
                     return true
                 }
-                KeyEvent.KEYCODE_MEDIA_PLAY -> { player?.play(); showControls(); return true }
-                KeyEvent.KEYCODE_MEDIA_PAUSE -> { player?.pause(); showControls(); return true }
+                KeyEvent.KEYCODE_MEDIA_PLAY -> { player?.play(); showControls(focus = true); return true }
+                KeyEvent.KEYCODE_MEDIA_PAUSE -> { player?.pause(); showControls(focus = true); return true }
                 KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> {
                     if (!controlsVisible) {
                         seekBy(if (event.keyCode == KeyEvent.KEYCODE_DPAD_LEFT) -10_000L else 10_000L)
                         return true
                     }
+                    if (!hasControlsFocus()) {
+                        showControls(focus = true)
+                        return true
+                    }
                 }
-                KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> if (!controlsVisible) {
-                    showControls()
-                    playPause.requestFocus()
-                    return true
-                }
-                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> if (!controlsVisible) {
-                    showControls()
-                    playPause.requestFocus()
-                    return true
+                KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN,
+                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                    if (!controlsVisible || !hasControlsFocus()) {
+                        showControls(focus = true)
+                        return true
+                    }
                 }
             }
         }
@@ -476,6 +530,7 @@ class ProviderPlayerActivity : Screen() {
         val exo = player
         if (id != null && exo != null && !stoppedReported) {
             stoppedReported = true
+            Jellyfin.invalidateCache(applicationContext)
             val ticks = exo.currentPosition.coerceAtLeast(0L) * 10_000L
             Screen.pool.execute {
                 runCatching { Jellyfin.reportStopped(applicationContext, id, ticks, jellyfinPlaySessionId) }
