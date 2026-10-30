@@ -48,6 +48,7 @@ object Profiles {
         Settings.forget(context, id)
         Jellyfin.forgetProfile(context, id)
         WatchStatuses.forgetProfile(context, id)
+        Iptv.forgetProfile(context, id)
         context.getSharedPreferences("search", Context.MODE_PRIVATE).edit().remove("recent:$id").apply()
     }
 
