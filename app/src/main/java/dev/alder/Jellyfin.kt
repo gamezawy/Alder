@@ -28,7 +28,7 @@ object Jellyfin {
     private const val DEVICE_ID = "alder-android-tv"
 
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-    private fun key(context: Context, name: String) = "$" + name + "@" + (Profiles.active(context)?.id ?: "none")
+    private fun key(context: Context, name: String) = name + "@" + (Profiles.active(context)?.id ?: "none")
 
     fun account(context: Context): JellyfinAccount? {
         val p = prefs(context)
