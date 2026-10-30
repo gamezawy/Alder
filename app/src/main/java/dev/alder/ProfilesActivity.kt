@@ -851,7 +851,7 @@ class ProfilesActivity : Screen() {
     private fun showReady(profile: Profile) {
         backTo = { openHome(profile) }
         val done = onboardingButton(getString(R.string.profiles_continue_to_alder)).apply { setOnClickListener { openHome(profile) } }
-        setWindowed(onboardingFrame(step(3, 3), 3, 3, column(Gravity.CENTER,
+        setWindowed(onboardingFrame(step(4, 4), 4, 4, column(Gravity.CENTER,
             onboardingAvatar(profile.name.take(1).uppercase(), 100, profile.color),
             text(profile.name, SERIF_TITLE, serif = true).marginTop(12)
         ).apply { gravity = Gravity.CENTER }, column(Gravity.START,
