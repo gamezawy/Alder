@@ -865,7 +865,7 @@ class MainActivity : Screen() {
      * drawn immediately; the server refresh runs behind it and only redraws when the data actually changed.
      */
     private fun appendJellyfinRows(p: Page, token: Int, opened: Long) {
-        if (p !in setOf(Page.HOME, Page.SHOWS, Page.MOVIES)) return
+        if (p !in setOf(Page.HOME, Page.SHOWS, Page.MOVIES, Page.LIBRARY)) return
         val account = Jellyfin.account(this) ?: return
         val cacheKey = "${profile.id}|${account.serverUrl}|${account.userId}|${p.label}"
         val shelfSlot = slot()
@@ -927,6 +927,12 @@ class MainActivity : Screen() {
 
     private fun loadJellyfinShelves(p: Page): List<JellyfinShelf> {
         if (Jellyfin.account(applicationContext) == null) return emptyList()
+        if (p == Page.LIBRARY) {
+            val favorites = runCatching { Jellyfin.favorites(applicationContext) }.getOrDefault(emptyList())
+            return favorites.takeIf { it.isNotEmpty() }?.let {
+                listOf(JellyfinShelf(getString(R.string.watch_status_favorite) + " · Jellyfin", it))
+            }.orEmpty()
+        }
         val views = runCatching { Jellyfin.views(applicationContext) }.getOrDefault(emptyList())
         return when (p) {
             Page.HOME -> buildList {
