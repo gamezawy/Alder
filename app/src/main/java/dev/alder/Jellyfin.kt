@@ -4,7 +4,6 @@ import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.URLEncoder
-import java.util.UUID
 
 data class JellyfinAccount(val serverUrl: String, val accessToken: String, val userId: String, val username: String)
 data class JellyfinItem(
@@ -25,7 +24,6 @@ object Jellyfin {
     private const val PREFS = "jellyfin"
     private const val CLIENT_NAME = "Alder"
     private const val DEVICE_NAME = "Android TV"
-    private const val DEVICE_ID = "alder-android-tv"
 
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
     private fun key(context: Context, name: String) = name + "@" + (Profiles.active(context)?.id ?: "none")
