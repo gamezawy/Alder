@@ -515,7 +515,7 @@ class SettingsActivity : Screen() {
                 if (jellyfinAccount != null) actionRow(getString(R.string.jellyfin_disconnect), jellyfinAccount.serverUrl,
                     getString(R.string.jellyfin_disconnect_hint)) {
                     Jellyfin.disconnect(this)
-                    showGroup(Group.SOURCES)
+                    refreshSources()
                 }
                 actionRow(getString(R.string.iptv_settings), Iptv.sourceSummary(this).ifBlank { getString(R.string.not_configured) },
                     getString(R.string.iptv_settings_hint), ::m3uDialog)
@@ -615,6 +615,11 @@ class SettingsActivity : Screen() {
                 }
             }
         }
+    }
+
+    private fun refreshSources() {
+        selectedGroup = null
+        showGroup(Group.SOURCES)
     }
 
     private fun settingRow(label: String, value: View, help: String, perProfile: Boolean = false,
@@ -753,7 +758,7 @@ class SettingsActivity : Screen() {
                         runCatching { Jellyfin.saveAccount(this, account) }
                             .onSuccess {
                                 dialog.dismiss()
-                                showGroup(Group.SOURCES)
+                                refreshSources()
                             }
                             .onFailure { error.text = it.message ?: getString(R.string.jellyfin_signin_failed) }
                     }.onFailure {
@@ -784,7 +789,7 @@ class SettingsActivity : Screen() {
             .setNegativeButton(R.string.action_cancel, null)
             .setPositiveButton(R.string.action_save) { _, _ ->
                 Iptv.setPlaylistUrl(this, input.text.toString())
-                showGroup(Group.SOURCES)
+                refreshSources()
             }.create()
         playlistDialog = dialog
         dialog.show()
@@ -800,7 +805,7 @@ class SettingsActivity : Screen() {
             Iptv.setPlaylistFile(this, uri)
         }.onSuccess {
             playlistDialog?.dismiss()
-            showGroup(Group.SOURCES)
+            refreshSources()
         }.onFailure {
             android.widget.Toast.makeText(this, it.message ?: getString(R.string.iptv_load_failed), android.widget.Toast.LENGTH_LONG).show()
         }
@@ -822,7 +827,7 @@ class SettingsActivity : Screen() {
         dialog.setOnShowListener {
             dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 runCatching { Iptv.setXtream(this, server.text.toString(), username.text.toString(), password.text.toString()) }
-                    .onSuccess { dialog.dismiss(); showGroup(Group.SOURCES) }
+                    .onSuccess { dialog.dismiss(); refreshSources() }
                     .onFailure { error.text = it.message ?: getString(R.string.iptv_load_failed) }
             }
         }
