@@ -325,6 +325,7 @@ class SearchActivity : Screen() {
                 characterKeys += key
             }
         }
+        characterKeys.forEachIndexed { index, view -> if (keyboardArabic) view.text = arabicLetters[index].toString() }
         val controls = keyRow()
         val mode = key("123", controls, 3, false) {
             numeric = !numeric
