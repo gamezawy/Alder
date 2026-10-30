@@ -766,18 +766,48 @@ class SettingsActivity : Screen() {
     }
 
     private fun m3uDialog() {
+        val layout = column(Gravity.START).apply { setPadding(dp(18), dp(10), dp(18), dp(6)) }
         val input = android.widget.EditText(this).apply {
             hint = getString(R.string.iptv_playlist_url_hint)
             setSingleLine()
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_URI
             setText(Iptv.playlistUrl(this@SettingsActivity))
         }
-        android.app.AlertDialog.Builder(this).setTitle(R.string.iptv_settings).setView(input)
+        val browse = text(getString(R.string.iptv_browse_file), BODY, color = TUNGSTEN).apply {
+            setPadding(0, dp(10), 0, dp(10))
+            isFocusable = true
+            setOnClickListener { startActivityForResult(Iptv.playlistPickerIntent(), REQUEST_PLAYLIST_FILE) }
+        }
+        layout.addView(input)
+        layout.addView(browse)
+        val dialog = android.app.AlertDialog.Builder(this).setTitle(R.string.iptv_settings).setView(layout)
             .setNegativeButton(R.string.action_cancel, null)
             .setPositiveButton(R.string.action_save) { _, _ ->
                 Iptv.setPlaylistUrl(this, input.text.toString())
                 showGroup(Group.SOURCES)
-            }.show()
+            }.create()
+        playlistDialog = dialog
+        dialog.show()
+    }
+
+    @Deprecated("Use the document picker result contract")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != REQUEST_PLAYLIST_FILE || resultCode != RESULT_OK) return
+        val uri = data?.data ?: return
+        runCatching {
+            contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            Iptv.setPlaylistFile(this, uri)
+        }.onSuccess {
+            playlistDialog?.dismiss()
+            showGroup(Group.SOURCES)
+        }.onFailure {
+            android.widget.Toast.makeText(this, it.message ?: getString(R.string.iptv_load_failed), android.widget.Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private companion object {
+        const val REQUEST_PLAYLIST_FILE = 7302
     }
 
     private fun xtreamDialog() {
