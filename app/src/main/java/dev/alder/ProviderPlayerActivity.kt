@@ -28,6 +28,15 @@ class ProviderPlayerActivity : Screen() {
     private var jellyfinItemId: String? = null
     private var stoppedReported = false
     private val progressHandler = Handler(Looper.getMainLooper())
+    private val progressReporter = object : Runnable {
+        override fun run() {
+            val id = jellyfinItemId ?: return
+            val exo = player ?: return
+            val ticks = exo.currentPosition.coerceAtLeast(0L) * 10_000L
+            Screen.pool.execute { runCatching { Jellyfin.reportPlayback(applicationContext, id, ticks, !exo.isPlaying) } }
+            progressHandler.postDelayed(this, 15_000L)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -101,7 +110,9 @@ class ProviderPlayerActivity : Screen() {
                     finish()
                     return@background
                 }
+                Screen.pool.execute { runCatching { Jellyfin.reportStarted(applicationContext, itemId, playback.mediaSourceId, playback.directPlay) } }
                 prepare(playback.streamUrl)
+                progressHandler.postDelayed(progressReporter, 15_000L)
             }
         } else prepare(url)
     }
@@ -118,12 +129,13 @@ class ProviderPlayerActivity : Screen() {
     }
 
     override fun onStop() {
+        progressHandler.removeCallbacksAndMessages(null)
         val id = jellyfinItemId
         val exo = player
         if (id != null && exo != null && !stoppedReported) {
             stoppedReported = true
             val ticks = (exo.currentPosition.coerceAtLeast(0L) * 10_000L)
-            runCatching { Jellyfin.reportStopped(applicationContext, id, ticks) }
+            Screen.pool.execute { runCatching { Jellyfin.reportStopped(applicationContext, id, ticks) } }
         }
         player?.release()
         player = null
