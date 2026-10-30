@@ -1,6 +1,9 @@
 package dev.alder
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.provider.OpenableColumns
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.URI
@@ -29,6 +32,7 @@ object Iptv {
     private fun key(context: Context, name: String) = name + "@" + (Profiles.active(context)?.id ?: "none")
 
     fun playlistUrl(context: Context): String {
+        if (prefs(context).getString(key(context, "playlistType"), "m3u") == "m3u_file") return ""
         val stored = prefs(context).getString(key(context, "playlistUrl"), null).orEmpty()
         SecureStorage.decrypt(stored)?.let { return it }
         if (stored.startsWith("http", true)) {
@@ -40,9 +44,12 @@ object Iptv {
     fun xtreamServer(context: Context) = prefs(context).getString(key(context, "xtreamServer"), "").orEmpty()
     fun sourceSummary(context: Context): String {
         val p = prefs(context)
-        return if (p.getString(key(context, "playlistType"), "m3u") == "xtream")
-            p.getString(key(context, "xtreamServer"), "").orEmpty()
-        else playlistUrl(context)
+        return when (p.getString(key(context, "playlistType"), "m3u")) {
+            "xtream" -> p.getString(key(context, "xtreamServer"), "").orEmpty()
+            "m3u_file" -> p.getString(key(context, "playlistFileName"), "").orEmpty()
+                .ifBlank { "Local M3U playlist" }
+            else -> playlistUrl(context)
+        }
     }
 
     fun setPlaylistUrl(context: Context, value: String) =
@@ -53,14 +60,44 @@ object Iptv {
             remove(key(context, "xtreamServer"))
             remove(key(context, "xtreamUsername"))
             remove(key(context, "xtreamPassword"))
+            remove(key(context, "playlistFileUri"))
+            remove(key(context, "playlistFileName"))
         }.apply()
+
+    fun setPlaylistFile(context: Context, uri: Uri) {
+        val name = runCatching {
+            context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) cursor.getString(0) else null
+            }
+        }.getOrNull()?.takeIf { it.isNotBlank() } ?: uri.lastPathSegment.orEmpty().ifBlank { "Local M3U playlist" }
+        prefs(context).edit().putString(key(context, "playlistType"), "m3u_file")
+            .putString(key(context, "playlistFileUri"), uri.toString())
+            .putString(key(context, "playlistFileName"), name)
+            .remove(key(context, "playlistUrl"))
+            .remove(key(context, "xtreamServer"))
+            .remove(key(context, "xtreamUsername"))
+            .remove(key(context, "xtreamPassword"))
+            .apply()
+    }
+
+    fun playlistPickerIntent(): Intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+        addCategory(Intent.CATEGORY_OPENABLE)
+        type = "*/*"
+        putExtra(Intent.EXTRA_MIME_TYPES, arrayOf(
+            "application/vnd.apple.mpegurl", "application/x-mpegURL", "audio/mpegurl",
+            "audio/x-mpegurl", "application/octet-stream", "text/plain"
+        ))
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+    }
 
     fun setXtream(context: Context, server: String, username: String, password: String) {
         require(username.isNotBlank() && password.isNotBlank()) { "Enter your Xtream username and password." }
         prefs(context).edit().putString(key(context, "playlistType"), "xtream")
             .putString(key(context, "xtreamServer"), Jellyfin.normalizeServerUrl(server))
             .putString(key(context, "xtreamUsername"), username)
-            .putString(key(context, "xtreamPassword"), SecureStorage.encrypt(password)).apply()
+            .putString(key(context, "xtreamPassword"), SecureStorage.encrypt(password))
+            .remove(key(context, "playlistFileUri")).remove(key(context, "playlistFileName"))
+            .remove(key(context, "playlistUrl")).apply()
     }
 
     fun forgetProfile(context: Context, profileId: String) {
@@ -126,6 +163,14 @@ object Iptv {
             }
             if (server.isBlank() || username.isBlank() || password.isBlank()) return IptvPlaylist(emptyList())
             return IptvPlaylist(parseXtream(server, username, password))
+        }
+        if (p.getString(key(context, "playlistType"), "m3u") == "m3u_file") {
+            val rawUri = p.getString(key(context, "playlistFileUri"), null)
+                ?: throw java.io.IOException("The selected playlist file is no longer available.")
+            val content = context.contentResolver.openInputStream(Uri.parse(rawUri))
+                ?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
+                ?: throw java.io.IOException("Could not open the selected playlist file.")
+            return parseM3u(content)
         }
         val url = playlistUrl(context)
         if (url.isBlank()) return IptvPlaylist(emptyList())
