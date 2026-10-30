@@ -509,4 +509,25 @@
     <string name="profiles_watchly_steps">"1.  Escanea con el teléfono de %1$s para abrir Watchly\n2.  Conecta allí la cuenta de Stremio de %1$s\n3.  Instálalo en la cuenta de Stremio de %1$s\n\nLas recomendaciones de %1$s aparecerán en Inicio. Puedes terminar esto más tarde."</string>
     <string name="profiles_all_set">Todo listo</string>
     <string name="profiles_ready">El perfil de %1$s está listo. Puedes añadir más complementos después en Configuración.</string>
+    <string name="action_save">Guardar</string>
+    <string name="provider_connecting">Conectando a Jellyfin…</string>
+    <string name="provider_library">Biblioteca</string>
+    <string name="provider_stremio">Stremio</string>
+    <string name="provider_live_tv">TV en directo</string>
+    <string name="provider_search">Buscar</string>
+    <string name="provider_jellyfin_not_connected">Jellyfin no está conectado. Conecta un servidor en Ajustes.</string>
+    <string name="provider_jellyfin_offline">El servidor Jellyfin no está disponible. Inicio permanece aquí; puedes abrir Stremio o TV en directo.</string>
+    <string name="provider_jellyfin_connected">Conectado a Jellyfin · %1$s</string>
+    <string name="provider_no_libraries">No se encontraron bibliotecas de Jellyfin.</string>
+    <string name="provider_no_items">Todavía no hay nada que mostrar.</string>
+    <string name="provider_retry">Reintentar</string>
+    <string name="provider_offline_navigation">Aún puedes abrir Stremio o TV en directo desde la navegación superior.</string>
+    <string name="provider_continue_watching">Seguir viendo</string>
+    <string name="provider_loading_library">Cargando biblioteca de Jellyfin…</string>
+    <string name="iptv_loading">Cargando lista IPTV…</string>
+    <string name="iptv_playlist_settings">Ajustes de lista</string>
+    <string name="iptv_channel_count">%1$d canales</string>
+    <string name="iptv_load_failed">No se pudo cargar la lista. Comprueba la dirección e inténtalo de nuevo.</string>
+    <string name="iptv_no_channels">No hay canales en este grupo.</string>
+    <string name="iptv_playlist_url_hint">URL de lista M3U o M3U8</string>
 </resources>
