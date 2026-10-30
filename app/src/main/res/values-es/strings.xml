@@ -567,4 +567,6 @@
     <string name="watch_status_dropped">Abandonado</string>
     <string name="watch_status_watched">Visto</string>
     <string name="iptv_favorites">Favoritos</string>
+    <string name="group_sources">Fuentes</string>
+    <string name="hint_sources">Conecta Jellyfin y proveedores de TV en directo, y elige cuál debe tener prioridad.</string>
 </resources>
