@@ -246,7 +246,7 @@ class ProviderPlayerActivity : Screen() {
             return view
         }
         add(getString(R.string.player_rewind_10)) { seekBy(-10_000L) }
-        playPause = add(getString(R.string.player_play), primary = true) {
+        playPause = add(getString(R.string.action_play), primary = true) {
             player?.let { if (it.isPlaying) it.pause() else it.play() }
         }
         add(getString(R.string.player_forward_10)) { seekBy(10_000L) }
@@ -390,7 +390,7 @@ class ProviderPlayerActivity : Screen() {
     }
 
     private fun updatePlayPause() {
-        playPause.text = if (player?.isPlaying == true) getString(R.string.player_pause) else getString(R.string.player_play)
+        playPause.text = if (player?.isPlaying == true) getString(R.string.player_pause) else getString(R.string.action_play)
     }
 
     private fun updateProgress() {
