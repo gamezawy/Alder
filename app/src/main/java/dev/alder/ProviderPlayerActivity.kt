@@ -272,8 +272,8 @@ class ProviderPlayerActivity : Screen() {
         }
         subtitleButton = addAction(options, getString(R.string.tab_subtitles)) { openTrackOptions(C.TRACK_TYPE_TEXT) }
         addAction(options, getString(R.string.player_audio)) { openTrackOptions(C.TRACK_TYPE_AUDIO) }
-        aspectButton = addAction(options, getString(R.string.player_aspect_ratio)) { openAspectOptions() }
-        speedButton = addAction(options, "1×") { openSpeedOptions() }
+        aspectButton = addAction(options, getString(R.string.player_aspect_ratio) + " · " + getString(R.string.player_aspect_fit)) { openAspectOptions() }
+        speedButton = addAction(options, getString(R.string.player_speed) + " · 1×") { openSpeedOptions() }
         val optionsScroll = HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
             clipChildren = false
@@ -329,7 +329,7 @@ class ProviderPlayerActivity : Screen() {
                 else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
             }
             playerView.resizeMode = resizeMode
-            aspectButton.text = modes[index]
+            aspectButton.text = getString(R.string.player_aspect_ratio) + " · " + modes[index]
             showControls()
         }
     }
@@ -341,7 +341,7 @@ class ProviderPlayerActivity : Screen() {
         val selected = speeds.indices.minByOrNull { kotlin.math.abs(speeds[it] - current) } ?: 2
         choose(getString(R.string.player_speed), labels, checked = selected) { index ->
             player?.setPlaybackSpeed(speeds[index])
-            speedButton.text = labels[index]
+            speedButton.text = getString(R.string.player_speed) + " · " + labels[index]
             showControls(focus = true)
         }
     }
