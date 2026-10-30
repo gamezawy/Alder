@@ -477,14 +477,15 @@ class ProfilesActivity : Screen() {
             }, LinearLayout.LayoutParams(-1, dp(KEY_H)).apply { if (keyboard.childCount > 0) topMargin = dp(3) })
         }
         keyboard.addView(LinearLayout(this).apply {
-            key(if (keyboardArabic) "EN" else "ع", this) {
+            lateinit var languageKey: TextView
+            languageKey = key(if (keyboardArabic) "EN" else "ع", this) {
                 keyboardArabic = !keyboardArabic
                 getSharedPreferences("settings", MODE_PRIVATE).edit().putBoolean("searchKeyboardArabic", keyboardArabic).apply()
                 letterKeys.forEachIndexed { index, view ->
                     view.text = (if (keyboardArabic) arabicLetters else englishLetters)[index].toString()
                 }
                 caps(upper)
-                this@apply.getChildAt(0)?.let { (it as? TextView)?.text = if (keyboardArabic) "EN" else "ع" }
+                languageKey.text = if (keyboardArabic) "EN" else "ع"
             }
             key("⇧", this) { caps(!upper) }
             key(getString(R.string.search_space).uppercase(), this, 3) { name.text.append(" ") }
