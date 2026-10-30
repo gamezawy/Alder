@@ -110,6 +110,12 @@ object Iptv {
         val base = Jellyfin.normalizeServerUrl(baseUrl)
         val credentials = "username=" + encode(username) + "&password=" + encode(password)
         val category = categoryId?.let { "&category_id=" + encode(it) }.orEmpty()
+        val categories = runCatching {
+            val values = JSONArray(Http.get(base + "/player_api.php?" + credentials + "&action=get_live_categories", timeoutMs = 30_000))
+            (0 until values.length()).mapNotNull { index ->
+                values.optJSONObject(index)?.let { it.optString("category_id") to it.optString("category_name") }
+            }.toMap()
+        }.getOrDefault(emptyMap())
         val array = JSONArray(Http.get(base + "/player_api.php?" + credentials + "&action=get_live_streams" + category, timeoutMs = 30_000))
         return (0 until array.length()).mapNotNull { i ->
             val item = array.optJSONObject(i) ?: return@mapNotNull null
@@ -118,7 +124,7 @@ object Iptv {
             IptvChannel(
                 name = item.optString("name").ifBlank { "Channel " + id },
                 streamUrl = base + "/live/" + encode(username) + "/" + encode(password) + "/" + id + ".ts",
-                group = item.optString("category_name").ifBlank { "Other" },
+                group = item.optString("category_name").ifBlank { categories[item.optString("category_id")].orEmpty().ifBlank { "Other" } },
                 tvgId = item.optString("epg_channel_id").takeIf { it.isNotBlank() },
                 logoUrl = item.optString("stream_icon").takeIf { it.startsWith("http", true) }
             )
