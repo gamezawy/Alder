@@ -122,7 +122,7 @@ class SearchActivity : Screen() {
             textSize = BODY
             setSingleLine()
             imeOptions = EditorInfo.IME_ACTION_SEARCH
-            showSoftInputOnFocus = false
+            showSoftInputOnFocus = Settings.keyboardMode(this@SearchActivity) == "system"
             background = null
             setPadding(dp(10), 0, dp(5), 0)
             setSelectAllOnFocus(false)
@@ -173,6 +173,8 @@ class SearchActivity : Screen() {
             background = glassOver(this, 14, shade = FROST_DENSE)
         }
         buildKeyboard()
+        val useBuiltinKeyboard = Settings.keyboardMode(this) == "builtin"
+        keyboard.visibility = if (useBuiltinKeyboard) View.VISIBLE else View.GONE
         root.addView(keyboard, FrameLayout.LayoutParams(dp(284), dp(190)).apply { leftMargin = dp(48); topMargin = dp(134) })
 
         recentBox = column(Gravity.START)
@@ -232,7 +234,10 @@ class SearchActivity : Screen() {
         }
         // Our keyboard first: the field never takes focus on opening, so the Android keyboard stays shut until the keyboard key.
         window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN)
-        firstKey?.post { firstKey?.requestFocus() }
+        if (useBuiltinKeyboard) firstKey?.post { firstKey?.requestFocus() } else input.post {
+            input.requestFocus()
+            (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).showSoftInput(input, InputMethodManager.SHOW_IMPLICIT)
+        }
         search(false)
     }
 
