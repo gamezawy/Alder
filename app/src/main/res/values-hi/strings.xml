@@ -523,4 +523,6 @@
     <string name="iptv_load_failed">प्लेलिस्ट लोड नहीं हो सकी। पता जाँचें और फिर कोशिश करें।</string>
     <string name="iptv_no_channels">इस समूह में कोई चैनल नहीं है।</string>
     <string name="iptv_playlist_url_hint">M3U या M3U8 प्लेलिस्ट URL</string>
+    <string name="searching_providers">Jellyfin और Stremio में खोज रहे हैं…</string>
+    <string name="search_provider_results">आपके प्रदाताओं में %1$d परिणाम</string>
 </resources>
