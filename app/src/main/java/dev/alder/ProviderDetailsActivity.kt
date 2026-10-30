@@ -53,8 +53,21 @@ class ProviderDetailsActivity : Screen() {
         }
         setWindowed(root, heroArt)
 
-        (Jellyfin.backdropUrl(this, itemId, 1800) ?: Jellyfin.imageUrl(this, itemId, null, 1400))?.let { url ->
-            Images.load(url, heroArt, resources.displayMetrics.widthPixels, urgent = true) {
+        val backdropUrl = Jellyfin.backdropUrl(this, itemId, 1800)
+        val posterUrl = Jellyfin.imageUrl(this, itemId, null, 1400)
+        val artWidth = resources.displayMetrics.widthPixels
+        if (backdropUrl != null) {
+            Images.load(backdropUrl, heroArt, artWidth, urgent = true, failed = {
+                if (posterUrl != null) Images.load(posterUrl, heroArt, artWidth, urgent = true) {
+                    heroArt.animate().alpha(1f).setDuration(250).start()
+                    refrost()
+                }
+            }) {
+                heroArt.animate().alpha(1f).setDuration(250).start()
+                refrost()
+            }
+        } else if (posterUrl != null) {
+            Images.load(posterUrl, heroArt, artWidth, urgent = true) {
                 heroArt.animate().alpha(1f).setDuration(250).start()
                 refrost()
             }
