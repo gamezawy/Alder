@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
@@ -124,7 +125,7 @@ class JellyfinHomeActivity : Screen() {
                     if (items.isNotEmpty()) addSection(getString(statusLabel(watchStatus)), items)
                 }
                 if (body.childCount == 0) body.addView(text(getString(R.string.provider_no_items), BODY, color = TEXT_2))
-                body.getChildAt(0)?.requestFocus()
+                focusFirst(body)
             }.onFailure {
                 showOffline(getString(R.string.provider_jellyfin_offline))
             }
@@ -155,7 +156,7 @@ class JellyfinHomeActivity : Screen() {
                     }
                 } else loadLibraryItems(selectedView!!)
                 if (body.childCount == 0) body.addView(text(getString(R.string.provider_no_libraries), BODY, color = TEXT_2))
-                body.getChildAt(0)?.requestFocus()
+                focusFirst(body)
             }.onFailure { showOffline(getString(R.string.provider_jellyfin_offline)) }
         }
     }
@@ -237,6 +238,17 @@ class JellyfinHomeActivity : Screen() {
     private fun play(item: JellyfinItem) {
         startActivity(Intent(this, ProviderDetailsActivity::class.java)
             .putExtra("jellyfinItemId", item.id))
+    }
+
+    private fun focusFirst(view: View): Boolean {
+        if (view.visibility != View.VISIBLE) return false
+        if (view.isFocusable && view.requestFocus()) return true
+        if (view is ViewGroup) {
+            for (index in 0 until view.childCount) {
+                if (focusFirst(view.getChildAt(index))) return true
+            }
+        }
+        return false
     }
 
     private fun showOffline(message: String) {
