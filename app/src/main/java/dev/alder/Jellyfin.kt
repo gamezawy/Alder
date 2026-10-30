@@ -343,10 +343,10 @@ object Jellyfin {
         return JellyfinPlayback(itemId, sourceId, session, stream, direct, subtitles)
     }
 
-    fun reportStarted(context: Context, itemId: String, mediaSourceId: String?, playSessionId: String?, directPlay: Boolean) {
+    fun reportStarted(context: Context, itemId: String, mediaSourceId: String?, playSessionId: String?, directPlay: Boolean, positionTicks: Long = 0L) {
         val account = account(context) ?: return
         val body = JSONObject().put("ItemId", itemId).put("PlayMethod", if (directPlay) "DirectPlay" else "Transcode")
-            .put("CanSeek", true).put("IsPaused", false).put("PositionTicks", 0)
+            .put("CanSeek", true).put("IsPaused", false).put("PositionTicks", positionTicks.coerceAtLeast(0L))
         mediaSourceId?.let { body.put("MediaSourceId", it) }
         playSessionId?.let { body.put("PlaySessionId", it) }
         Http.post(account.serverUrl + "/Sessions/Playing", body.toString(),

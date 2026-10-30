@@ -161,7 +161,7 @@ class ProviderPlayerActivity : Screen() {
                 Screen.pool.execute {
                     runCatching {
                         Jellyfin.reportStarted(applicationContext, itemId, playback.mediaSourceId,
-                            playback.playSessionId, playback.directPlay)
+                            playback.playSessionId, playback.directPlay, startAtMs * 10_000L)
                     }
                 }
                 prepare(playback.streamUrl, playback.subtitles)
