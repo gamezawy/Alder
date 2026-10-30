@@ -494,7 +494,7 @@ class SettingsActivity : Screen() {
                 }
                 actionRow(getString(R.string.iptv_settings), Iptv.sourceSummary(this).ifBlank { getString(R.string.not_configured) },
                     getString(R.string.iptv_settings_hint), ::m3uDialog)
-                actionRow(getString(R.string.iptv_xtream), getString(R.string.iptv_xtream_hint),
+                actionRow(getString(R.string.iptv_xtream), "",
                     getString(R.string.iptv_xtream_hint), ::xtreamDialog)
                 Profiles.active(this)?.let { me ->
                     lateinit var value: TextView
