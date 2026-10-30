@@ -92,4 +92,12 @@
     <string name="profiles_connect">ربط Stremio</string>
     <string name="profiles_continue_to_alder">المتابعة إلى Alder</string>
     <string name="profiles_all_set">أصبحت جاهزًا</string>
+    <string name="watch_status_title">تحديد حالة المشاهدة</string>
+    <string name="watch_status_none">بدون حالة</string>
+    <string name="watch_status_favorite">المفضلة</string>
+    <string name="watch_status_watching">أشاهده حاليًا</string>
+    <string name="watch_status_on_hold">مؤجل</string>
+    <string name="watch_status_dropped">متروك</string>
+    <string name="watch_status_watched">تمت مشاهدته</string>
+    <string name="iptv_favorites">القنوات المفضلة</string>
 </resources>
