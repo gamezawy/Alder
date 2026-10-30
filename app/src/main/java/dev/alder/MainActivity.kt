@@ -737,11 +737,6 @@ class MainActivity : Screen() {
             nav.addView(this, LinearLayout.LayoutParams(width, height).apply { if (nav.childCount > 0) marginStart = dp(NAV_GAP) })
         }
         // As tall as the words' pills (match parent), the glyph 18 dp inside it.
-        text(getString(R.string.provider_jellyfin_home), BODY).apply {
-            gravity = Gravity.CENTER
-            setPadding(dp(12), dp(4), dp(12), dp(2))
-            setOnClickListener { startActivity(Intent(this@MainActivity, JellyfinHomeActivity::class.java)) }
-        }.inNav()
         search = ImageView(this).apply {
             setImageResource(R.drawable.ic_search)
             contentDescription = getString(R.string.nav_search)
@@ -775,6 +770,11 @@ class MainActivity : Screen() {
                 if (p == Page.SHOWS && !Settings.showShows(this@MainActivity)) visibility = View.GONE
             }.inNav()
         }
+        text(getString(R.string.provider_jellyfin_home), BODY).apply {
+            gravity = Gravity.CENTER
+            setPadding(dp(12), dp(4), dp(12), dp(2))
+            setOnClickListener { startActivity(Intent(this@MainActivity, JellyfinHomeActivity::class.java)) }
+        }.inNav()
         nav.background = glassOver(nav, NAV_R + 4)
         header.addView(avatarBox, FrameLayout.LayoutParams(dp(30), dp(30), Gravity.START or Gravity.CENTER_VERTICAL))
         header.addView(nav, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER))
