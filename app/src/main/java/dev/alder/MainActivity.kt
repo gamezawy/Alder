@@ -184,6 +184,7 @@ class MainActivity : Screen() {
     private lateinit var listHint: TextView
     private lateinit var heroAdded: TextView
     private var search: ImageView? = null
+    private var liveTv: ImageView? = null
     private val rows = mutableListOf<Row>()
     private var focusedSomething = false
     private val metas = mutableMapOf<String, Meta>() // full details, fetched once per title
@@ -748,6 +749,13 @@ class MainActivity : Screen() {
             setOnFocusChangeListener { _, _ -> styleNav() }
             setOnClickListener { startActivity(Intent(this@MainActivity, ProviderSearchActivity::class.java)) }
         }.inNav(width = dp(44), height = -1)
+        liveTv = ImageView(this).apply {
+            setImageResource(R.drawable.ic_tv)
+            contentDescription = getString(R.string.provider_live_tv)
+            setPadding(dp(12), dp(7), dp(12), dp(7))
+            setOnFocusChangeListener { _, _ -> styleNav() }
+            setOnClickListener { startActivity(Intent(this@MainActivity, IptvActivity::class.java)) }
+        }.inNav(width = dp(44), height = -1)
         // One destination bar for both sources. Jellyfin is the default Home/Library; Stremio remains
         // a clearly named section inside Alder rather than opening a second-looking home screen.
         val navOrder = listOf(Page.JELLYFIN_HOME, Page.JELLYFIN_LIBRARY, Page.HOME, Page.SHOWS, Page.MOVIES, Page.LIVE, Page.LIBRARY)
@@ -937,6 +945,10 @@ class MainActivity : Screen() {
             })
         }
         search?.let {
+            it.background = if (it.isFocused) glass(NAV_R, true) else null
+            it.setColorFilter(if (it.isFocused) TEXT else TEXT_2)
+        }
+        liveTv?.let {
             it.background = if (it.isFocused) glass(NAV_R, true) else null
             it.setColorFilter(if (it.isFocused) TEXT else TEXT_2)
         }

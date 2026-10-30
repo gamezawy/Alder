@@ -61,6 +61,7 @@ object Jellyfin {
     }
 
     fun saveAccount(context: Context, account: JellyfinAccount) {
+        invalidateCache(context)
         prefs(context).edit().putString(key(context, "server"), normalizeServerUrl(account.serverUrl))
             .putString(key(context, "token"), SecureStorage.encrypt(account.accessToken)).putString(key(context, "userId"), account.userId)
             .putString(key(context, "username"), account.username)
@@ -74,6 +75,7 @@ object Jellyfin {
     }
 
     fun forgetProfile(context: Context, profileId: String) {
+        responseCache.keys.removeIf { it.startsWith(profileId + "|") }
         prefs(context).edit().remove("server@$profileId").remove("token@$profileId")
             .remove("userId@$profileId").remove("username@$profileId").remove("modernAuthorization@$profileId").apply()
     }
