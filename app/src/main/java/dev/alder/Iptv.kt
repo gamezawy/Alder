@@ -28,7 +28,15 @@ object Iptv {
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
     private fun key(context: Context, name: String) = name + "@" + (Profiles.active(context)?.id ?: "none")
 
-    fun playlistUrl(context: Context) = SecureStorage.decrypt(prefs(context).getString(key(context, "playlistUrl"), null)).orEmpty()
+    fun playlistUrl(context: Context): String {
+        val stored = prefs(context).getString(key(context, "playlistUrl"), null).orEmpty()
+        SecureStorage.decrypt(stored)?.let { return it }
+        if (stored.startsWith("http", true)) {
+            runCatching { prefs(context).edit().putString(key(context, "playlistUrl"), SecureStorage.encrypt(stored)).apply() }
+            return stored
+        }
+        return ""
+    }
     fun xtreamServer(context: Context) = prefs(context).getString(key(context, "xtreamServer"), "").orEmpty()
     fun sourceSummary(context: Context): String {
         val p = prefs(context)
@@ -110,7 +118,12 @@ object Iptv {
         if (p.getString(key(context, "playlistType"), "m3u") == "xtream") {
             val server = p.getString(key(context, "xtreamServer"), "").orEmpty()
             val username = p.getString(key(context, "xtreamUsername"), "").orEmpty()
-            val password = SecureStorage.decrypt(p.getString(key(context, "xtreamPassword"), null)).orEmpty()
+            val storedPassword = p.getString(key(context, "xtreamPassword"), null).orEmpty()
+            val password = SecureStorage.decrypt(storedPassword) ?: storedPassword.takeIf { it.isNotBlank() }.orEmpty().also { legacy ->
+                if (legacy.isNotBlank()) runCatching {
+                    p.edit().putString(key(context, "xtreamPassword"), SecureStorage.encrypt(legacy)).apply()
+                }
+            }
             if (server.isBlank() || username.isBlank() || password.isBlank()) return IptvPlaylist(emptyList())
             return IptvPlaylist(parseXtream(server, username, password))
         }
