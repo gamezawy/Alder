@@ -65,6 +65,26 @@ object Settings {
         prefs(c).edit().putStringSet(profileKey(c, "hiddenRows"), current).apply()
     }
     fun startTab(c: Context) = prefs(c).getString(profileKey(c, "startTab"), "home").orEmpty()
+
+    /** Provider preference for equivalent results and preferred playback sources: jellyfin first or stremio first. */
+    fun sourcePriority(c: Context): String = prefs(c).getString("sourcePriority", "jellyfin").orEmpty()
+    fun setSourcePriority(c: Context, value: String) {
+        require(value == "jellyfin" || value == "stremio")
+        prefs(c).edit().putString("sourcePriority", value).apply()
+    }
+    /** Built-in remote keyboard or the Android system input method. */
+    fun keyboardMode(c: Context): String = prefs(c).getString("keyboardMode", "builtin").orEmpty()
+    fun setKeyboardMode(c: Context, value: String) {
+        require(value == "builtin" || value == "system")
+        prefs(c).edit().putString("keyboardMode", value).apply()
+    }
+    fun preferredSearchProviders(c: Context): Set<String> =
+        prefs(c).getStringSet("searchProviders", setOf("jellyfin", "stremio"))?.toSet()
+            ?: setOf("jellyfin", "stremio")
+    fun setPreferredSearchProviders(c: Context, values: Set<String>) {
+        require(values.isNotEmpty() && values.all { it in setOf("jellyfin", "stremio") })
+        prefs(c).edit().putStringSet("searchProviders", values.toSet()).apply()
+    }
     fun showMovies(c: Context) = prefs(c).getBoolean(profileKey(c, "showMovies"), true)
     fun showShows(c: Context) = prefs(c).getBoolean(profileKey(c, "showShows"), true)
     fun showLive(c: Context) = prefs(c).getBoolean(profileKey(c, "showLive"), true)
