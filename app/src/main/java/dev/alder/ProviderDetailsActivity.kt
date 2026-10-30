@@ -55,7 +55,7 @@ class ProviderDetailsActivity : Screen() {
                     loaded.year?.toString(),
                     loaded.officialRating,
                     loaded.communityRating?.let { String.format(java.util.Locale.US, "%.1f", it) },
-                    loaded.genres.take(3).joinToString(" · ").ifBlank { null }
+                    loaded.genres.take(3).joinToString(" · ").takeIf { it.isNotBlank() }
                 ).joinToString("   ·   ")
                 details.removeAllViews()
                 details.addView(text(loaded.name, SERIF_HERO, serif = true).onArt().apply { maxLines = 2 })
