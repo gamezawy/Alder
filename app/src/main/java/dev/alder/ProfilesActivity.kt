@@ -797,9 +797,14 @@ class ProfilesActivity : Screen() {
         discover.setOnClickListener { findServers() }
         connect.setOnClickListener {
             error.text = ""
+            val serverAddress = runCatching { Jellyfin.normalizeServerUrl(server.text.toString()) }.getOrElse {
+                error.text = it.message ?: getString(R.string.jellyfin_signin_failed)
+                return@setOnClickListener
+            }
+            server.setText(serverAddress)
             status.text = getString(R.string.jellyfin_connecting)
             connect.isEnabled = false
-            background({ Jellyfin.authenticate(server.text.toString(), username.text.toString(), password.text.toString()) }) { result ->
+            background({ Jellyfin.authenticate(serverAddress, username.text.toString(), password.text.toString()) }) { result ->
                 if (generation != pickerGeneration) return@background
                 connect.isEnabled = true
                 result.onSuccess { account ->
