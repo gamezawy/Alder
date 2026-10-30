@@ -72,11 +72,13 @@ object Jellyfin {
         val raw = value.trim().trimEnd('/')
         require(raw.isNotEmpty()) { "Enter a Jellyfin server address." }
         val uri = java.net.URI(if ("://" in raw) raw else "http://$raw")
-        require(uri.scheme in setOf("http", "https") && !uri.host.isNullOrBlank()) { "Use a valid HTTP or HTTPS server address." }
-        require(uri.userInfo == null && uri.query == null && uri.fragment == null) {
-            "The server address must not contain credentials, a query, or a fragment."
+        require(uri.scheme?.lowercase() in setOf("http", "https") && !uri.host.isNullOrBlank()) {
+            "Use a valid HTTP or HTTPS server address."
         }
-        return uri.toASCIIString().trimEnd('/')
+        require(uri.userInfo == null) { "The server address must not contain credentials." }
+        // Users often paste Jellyfin's browser URL (/web/#/home). API requests must target the server root.
+        return java.net.URI(uri.scheme.lowercase(), null, uri.host, uri.port, null, null, null)
+            .toASCIIString().trimEnd('/')
     }
 
     fun discoverServers(timeoutMs: Long = 3_500): List<JellyfinServer> {
@@ -125,8 +127,15 @@ object Jellyfin {
         require(password.isNotEmpty()) { "Enter your Jellyfin password." }
         val auth = "MediaBrowser Client=\"$CLIENT_NAME\", Device=\"$DEVICE_NAME\", DeviceId=\"$DEVICE_ID\", Version=\"1\""
         val body = JSONObject().put("Username", username).put("Pw", password).toString()
-        val answer = Http.post("$server/Users/AuthenticateByName", body, timeoutMs = 20_000,
-            headers = mapOf("X-Emby-Authorization" to auth, "Accept" to "application/json"))
+        val answer = try {
+            Http.post("$server/Users/AuthenticateByName", body, timeoutMs = 20_000,
+                headers = mapOf("X-Emby-Authorization" to auth, "Accept" to "application/json"), strict = true)
+        } catch (e: HttpError) {
+            val detail = runCatching { JSONObject(e.responseBody.orEmpty()).optString("Message") }.getOrNull()
+                .orEmpty().ifBlank { e.responseBody.orEmpty().take(300) }
+            throw JellyfinException("Jellyfin sign-in failed (HTTP ${e.code})" +
+                if (detail.isBlank()) "." else ": $detail", e.code)
+        }
         val json = runCatching { JSONObject(answer) }.getOrElse { throw JellyfinException("The server returned an invalid sign-in response.") }
         val token = json.optString("AccessToken")
         val user = json.optJSONObject("User")
