@@ -292,7 +292,9 @@ object Jellyfin {
     /** Authorization for Media3 HTTP requests; Jellyfin 12 uses the standard header, not a URL token. */
     fun authorizationHeaders(context: Context): Map<String, String> {
         val account = account(context) ?: return emptyMap()
-        return JellyfinAuth.tokenHeaders(account.accessToken, account.useModernAuthorization)
+        // Legacy playback already carries api_key in its URL; don't send the same token twice.
+        if (!account.useModernAuthorization) return emptyMap()
+        return JellyfinAuth.tokenHeaders(account.accessToken, modern = true)
     }
 
     private fun withStreamAuthorization(url: String, account: JellyfinAccount): String {
