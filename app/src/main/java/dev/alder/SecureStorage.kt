@@ -20,7 +20,8 @@ object SecureStorage {
 
     private fun key(): SecretKey {
         val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        (store.getKey(KEY_ALIAS, null) as? SecretKey)?.let { return it }
+        runCatching { store.getKey(KEY_ALIAS, null) as? SecretKey }.getOrNull()?.let { return it }
+        runCatching { store.deleteEntry(KEY_ALIAS) }
         val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
         generator.init(
             KeyGenParameterSpec.Builder(
