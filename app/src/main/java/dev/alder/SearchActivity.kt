@@ -714,7 +714,7 @@ class SearchActivity : Screen() {
                         for (i in 0 until results.childCount) results.getChildAt(i).let { it.alpha = if (it.top < group.top) 0f else 1f }
                     }
                     val year = provider?.year?.toString() ?: meta?.year
-                    caption.text = hit.title + (year?.let { "  ·  " + it.take(4) } ?: "")
+                    caption.text = hit.title + (year?.let { "  ·  " + it.take(4) } ?: "") + if (provider != null) "  ·  Jellyfin" else ""
                     caption.visibility = View.VISIBLE
                     val parentRow = parent as ViewGroup
                     val target = (left - parentRow.paddingStart).coerceIn(0, (parentRow.width - scroller.width).coerceAtLeast(0))
