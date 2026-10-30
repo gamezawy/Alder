@@ -27,6 +27,7 @@ class ProviderDetailsActivity : Screen() {
     private var episodesAction: TextView? = null
     private var episodesUnavailable = false
     private var episodesLoaded = false
+    private var backdropFailed = false
     private lateinit var guide: FrameLayout
     private lateinit var guideRows: LinearLayout
     private var guideOpen = false
@@ -54,24 +55,23 @@ class ProviderDetailsActivity : Screen() {
         setWindowed(root, heroArt)
 
         val backdropUrl = Jellyfin.backdropUrl(this, itemId, 1800)
-        val posterUrl = Jellyfin.imageUrl(this, itemId, null, 1400)
         val artWidth = resources.displayMetrics.widthPixels
         if (backdropUrl != null) {
             Images.load(backdropUrl, heroArt, artWidth, urgent = true, failed = {
-                if (posterUrl != null) Images.load(posterUrl, heroArt, artWidth, urgent = true) {
-                    heroArt.animate().alpha(1f).setDuration(250).start()
-                    refrost()
+                backdropFailed = true
+                item?.let { loaded ->
+                    Jellyfin.imageUrl(this, loaded.id, loaded.imageTag, 1400)?.let { poster ->
+                        Images.load(poster, heroArt, artWidth, urgent = true) {
+                            heroArt.animate().alpha(1f).setDuration(250).start()
+                            refrost()
+                        }
+                    }
                 }
             }) {
                 heroArt.animate().alpha(1f).setDuration(250).start()
                 refrost()
             }
-        } else if (posterUrl != null) {
-            Images.load(posterUrl, heroArt, artWidth, urgent = true) {
-                heroArt.animate().alpha(1f).setDuration(250).start()
-                refrost()
-            }
-        }
+        } else backdropFailed = true
 
         background({ Jellyfin.item(applicationContext, itemId) }) { result ->
             if (isFinishing || isDestroyed) return@background
@@ -96,6 +96,12 @@ class ProviderDetailsActivity : Screen() {
 
     private fun showHero(loaded: JellyfinItem) {
         hero.removeAllViews()
+        if (backdropFailed) Jellyfin.imageUrl(this, loaded.id, loaded.imageTag, 1400)?.let { poster ->
+            Images.load(poster, heroArt, resources.displayMetrics.widthPixels, urgent = true) {
+                heroArt.animate().alpha(1f).setDuration(250).start()
+                refrost()
+            }
+        }
         val title = text(loaded.name, SERIF_HERO, serif = true).onArt().apply {
             maxLines = 2
             ellipsize = android.text.TextUtils.TruncateAt.END
