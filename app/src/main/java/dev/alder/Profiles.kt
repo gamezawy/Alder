@@ -46,6 +46,8 @@ object Profiles {
         if (prefs.getString("active", null) == id) prefs.edit().remove("active").apply()
         prefs.edit().remove("shareStreams:$id").remove("signedOut:$id").apply()
         Settings.forget(context, id)
+        Jellyfin.forgetProfile(context, id)
+        WatchStatuses.forgetProfile(context, id)
         context.getSharedPreferences("search", Context.MODE_PRIVATE).edit().remove("recent:$id").apply()
     }
 
