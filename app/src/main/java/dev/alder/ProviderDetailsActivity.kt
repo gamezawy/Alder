@@ -109,10 +109,6 @@ class ProviderDetailsActivity : Screen() {
             ellipsize = android.text.TextUtils.TruncateAt.END
         }
         val facts = listOfNotNull(
-            if (isEpisode) listOfNotNull(
-                loaded.seasonNumber?.let { "S%02d".format(it) },
-                loaded.episodeNumber?.let { "E%02d".format(it) }
-            ).joinToString(" ").takeIf { it.isNotBlank() } else null,
             loaded.year?.toString(),
             loaded.officialRating,
             loaded.communityRating?.let { String.format(Locale.US, "%.1f", it) },
