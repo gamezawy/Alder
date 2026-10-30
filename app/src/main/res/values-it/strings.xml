@@ -530,4 +530,6 @@
     <string name="iptv_load_failed">Impossibile caricare la playlist. Controlla l’indirizzo e riprova.</string>
     <string name="iptv_no_channels">Nessun canale in questo gruppo.</string>
     <string name="iptv_playlist_url_hint">URL playlist M3U o M3U8</string>
+    <string name="searching_providers">Ricerca in Jellyfin e Stremio…</string>
+    <string name="search_provider_results">%1$d risultati tra i tuoi provider</string>
 </resources>
