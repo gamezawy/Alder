@@ -31,7 +31,7 @@ class JellyfinException(message: String, val statusCode: Int? = null) : java.io.
  * Passwords are never persisted; only the server URL and server-issued access token are stored locally.
  */
 internal fun orderJellyfinEpisodes(items: List<JellyfinItem>): List<JellyfinItem> =
-    items.sortedWith(compareBy<JellyfinItem> { it.seasonNumber ?: 0 }
+    items.sortedWith(compareBy<JellyfinItem> { it.seasonNumber ?: Int.MAX_VALUE }
         .thenBy { it.episodeNumber ?: Int.MAX_VALUE }
         .thenBy { it.name.lowercase(java.util.Locale.ROOT) })
 
