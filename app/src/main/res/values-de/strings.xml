@@ -560,4 +560,6 @@
     <string name="watch_status_dropped">Abgebrochen</string>
     <string name="watch_status_watched">Angesehen</string>
     <string name="iptv_favorites">Favoriten</string>
+    <string name="group_sources">Quellen</string>
+    <string name="hint_sources">Verbinde Jellyfin und Live-TV-Anbieter und lege fest, welcher Anbieter Vorrang hat.</string>
 </resources>
