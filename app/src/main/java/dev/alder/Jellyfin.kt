@@ -382,7 +382,6 @@ object Jellyfin {
     }
 
     fun reportStopped(context: Context, itemId: String, positionTicks: Long, playSessionId: String? = null) {
-        invalidateCache(context)
         val account = account(context) ?: return
         val body = JSONObject().put("ItemId", itemId).put("PositionTicks", positionTicks)
         playSessionId?.let { body.put("PlaySessionId", it) }
