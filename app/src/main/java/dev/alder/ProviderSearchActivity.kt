@@ -145,6 +145,24 @@ class ProviderSearchActivity : Screen() {
         query.setSelection(at + value.length)
     }
 
+    private fun setWatchStatus(provider: String, itemId: String, title: String) {
+        val statuses = WatchStatus.entries
+        val labels = statuses.map { status ->
+            getString(when (status) {
+                WatchStatus.NONE -> R.string.watch_status_none
+                WatchStatus.FAVORITE -> R.string.watch_status_favorite
+                WatchStatus.WATCHING -> R.string.watch_status_watching
+                WatchStatus.ON_HOLD -> R.string.watch_status_on_hold
+                WatchStatus.DROPPED -> R.string.watch_status_dropped
+                WatchStatus.WATCHED -> R.string.watch_status_watched
+            })
+        }
+        choose(getString(R.string.watch_status_title), labels, title,
+            checked = WatchStatuses.get(this, provider, itemId).ordinal) { index ->
+            WatchStatuses.set(this, provider, itemId, statuses[index])
+        }
+    }
+
     private fun runSearch() {
         val value = query.text.toString().trim()
         if (value.isBlank()) return
@@ -179,6 +197,11 @@ class ProviderSearchActivity : Screen() {
                     }
                     row.addView(text(hit.title, BODY, color = TEXT))
                     row.addView(text(hit.provider.uppercase(Locale.ROOT) + " · " + hit.subtitle, SMALL, color = TEXT_3))
+                    row.setOnLongClickListener {
+                        val id = hit.jellyfin?.id ?: hit.stremio?.id.orEmpty()
+                        setWatchStatus(hit.provider, id, hit.title)
+                        true
+                    }
                     results.addView(row, LinearLayout.LayoutParams(-1, -2))
                 }
                 if (hits.isEmpty()) status.text = getString(R.string.search_no_matches)
