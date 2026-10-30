@@ -74,6 +74,7 @@ class ProviderDetailsActivity : Screen() {
                     layoutParams = LinearLayout.LayoutParams(-2, dp(44)).apply { marginStart = dp(12) }
                 })
                 Images.load(Jellyfin.imageUrl(this, loaded.id, loaded.imageTag, 800), poster, dp(500))
+                actions.getChildAt(0)?.requestFocus()
             }.onFailure {
                 status.text = getString(R.string.provider_jellyfin_offline)
             }
