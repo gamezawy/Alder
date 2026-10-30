@@ -354,6 +354,7 @@ class DetailsActivity : Screen() {
             }
             val trailerButton = if (hasTrailer) trailerPill { playTrailer(m) } else null
             infoButton = iconButton("ⓘ", getString(R.string.action_more_info)) { showInfo() }
+            val statusButton = iconButton("◉", getString(R.string.watch_status_title)) { chooseStremioStatus() }
             listButton = iconButton(if (Library.inList(item)) "✓" else "+", getString(R.string.tab_my_list)) { toggleList() }
             buttonRow = LinearLayout(this).apply {
                 gravity = Gravity.CENTER_VERTICAL
@@ -362,6 +363,7 @@ class DetailsActivity : Screen() {
                 addView(playButton, wrap().apply { marginEnd = dp(if (trailerButton != null) 10 else 14) })
                 trailerButton?.let { addView(it, wrap().apply { marginEnd = dp(10) }) }
                 addView(listButton, LinearLayout.LayoutParams(dp(BUTTON_H), dp(BUTTON_H)).apply { marginEnd = dp(8) })
+                addView(statusButton, LinearLayout.LayoutParams(dp(BUTTON_H), dp(BUTTON_H)).apply { marginEnd = dp(8) })
                 addView(infoButton, LinearLayout.LayoutParams(dp(BUTTON_H), dp(BUTTON_H)))
             }
             stack.addView(buttonRow, wrap().apply { topMargin = dp(16) })
@@ -386,6 +388,7 @@ class DetailsActivity : Screen() {
             openSources(target?.first ?: metaId, startOver = true)
         } else null
         infoButton = iconButton("ⓘ", getString(R.string.action_more_info)) { showInfo(focusCast = false) }
+        val statusButton = iconButton("◉", getString(R.string.watch_status_title)) { chooseStremioStatus() }
         listButton = iconButton(if (Library.inList(item)) "✓" else "+", getString(R.string.tab_my_list)) { toggleList() }
         buttonRow = LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL
@@ -395,10 +398,29 @@ class DetailsActivity : Screen() {
             trailerButton?.let { addView(it, wrap().apply { marginEnd = dp(10) }) }
             startOver?.let { addView(it, LinearLayout.LayoutParams(dp(BUTTON_H), dp(BUTTON_H)).apply { marginEnd = dp(8) }) }
             addView(listButton, LinearLayout.LayoutParams(dp(BUTTON_H), dp(BUTTON_H)).apply { marginEnd = dp(8) })
+            addView(statusButton, LinearLayout.LayoutParams(dp(BUTTON_H), dp(BUTTON_H)).apply { marginEnd = dp(8) })
             addView(infoButton, LinearLayout.LayoutParams(dp(BUTTON_H), dp(BUTTON_H)))
         }
         stack.addView(buttonRow, wrap().apply { topMargin = dp(16) })
         playButton.post { if (!guideOpen && !infoOpen && !similarOpen && !filmographyOpen) playButton.requestFocus() }
+    }
+
+    private fun chooseStremioStatus() {
+        val statuses = WatchStatus.entries
+        val labels = statuses.map { status ->
+            getString(when (status) {
+                WatchStatus.NONE -> R.string.watch_status_none
+                WatchStatus.FAVORITE -> R.string.watch_status_favorite
+                WatchStatus.WATCHING -> R.string.watch_status_watching
+                WatchStatus.ON_HOLD -> R.string.watch_status_on_hold
+                WatchStatus.DROPPED -> R.string.watch_status_dropped
+                WatchStatus.WATCHED -> R.string.watch_status_watched
+            })
+        }
+        choose(getString(R.string.watch_status_title), labels, m.name,
+            checked = WatchStatuses.get(this, "stremio", metaId).ordinal) { index ->
+            WatchStatuses.set(this, "stremio", metaId, statuses[index])
+        }
     }
 
     private fun seasonName(season: Int) = if (season == 0) getString(R.string.season_specials) else getString(R.string.season_number, season)
