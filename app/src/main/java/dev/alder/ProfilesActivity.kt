@@ -70,11 +70,16 @@ class ProfilesActivity : Screen() {
     }
 
     /** Opens a profile, asking for its PIN first when it has one; a signed-out one signs in again first. */
-    private fun enter(p: Profile) = withPin(p) { if (Profiles.signedOut(this, p.id)) showSignIn(p.name, p) else openHome(p) }
+    private fun enter(p: Profile) = withPin(p) {
+        if (p.authKey.isBlank()) openHome(p)
+        else if (Profiles.signedOut(this, p.id)) showSignIn(p.name, p)
+        else openHome(p)
+    }
 
     private fun openHome(profile: Profile) {
         Profiles.setActive(this, profile.id)
-        val home = Intent(this, if (intent.hasExtra("id")) MainActivity::class.java else JellyfinHomeActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        val home = Intent(this, if (intent.hasExtra("id") || intent.getBooleanExtra("returnToStremio", false))
+            MainActivity::class.java else JellyfinHomeActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
         // Opened from the Google TV home's Continue Watching: Home, with that title's page on top of it.
         // A fresh task, so an app already open in the background doesn't end up with two Homes.
         if (intent.hasExtra("id")) startActivities(arrayOf(home,
@@ -520,6 +525,7 @@ class ProfilesActivity : Screen() {
         backTo = if (again != null) ::showPicker else ::showName
         signingIn = true
         val request = ++signInGeneration
+        val first = Profiles.all(this).isEmpty()
         val qr = ImageView(this).apply { scaleType = ImageView.ScaleType.FIT_CENTER }
         val status = text(R.string.profiles_getting_code, SMALL, color = TEXT_2)
         val countdown = ring(1f)
@@ -535,6 +541,17 @@ class ProfilesActivity : Screen() {
             }) }
         }
         val back = chip(R.string.profiles_back)
+        val later = chip(R.string.profiles_setup_later).apply {
+            visibility = if (first && again == null) View.VISIBLE else View.GONE
+            setOnClickListener {
+                waitingCode = null
+                signingIn = false
+                val profile = Profiles.add(this@ProfilesActivity, name, "", draftColor)
+                draftName = ""
+                draftColor = Profiles.COLORS[0]
+                showJellyfinSetup(profile, emptyList())
+            }
+        }
         back.setOnClickListener { waitingCode = null; if (again != null) showPicker() else showName() }
         val left = column(Gravity.CENTER,
             FrameLayout(this).apply {
@@ -572,8 +589,8 @@ class ProfilesActivity : Screen() {
             // Two people approving on one phone sign each other out: switching accounts there can end the other's sign-in.
             text(R.string.profiles_sharing_phone, SMALL, color = TEXT_2).onArt().marginTop(24),
             text(R.string.profiles_new_to_stremio, SMALL, color = TEXT_3).onArt().marginTop(10),
+            later.marginTop(12),
         ).apply { gravity = Gravity.CENTER_VERTICAL }
-        val first = Profiles.all(this).isEmpty()
         val total = if (again != null) 2 else if (first) 3 else 4
         val content = onboardingFrame(if (again != null) getString(R.string.profiles_step_sign_in) else step(2, total),
             if (again != null) 1 else 2, total, left, steps, dp(55), 0f, 1f, dp(300))
