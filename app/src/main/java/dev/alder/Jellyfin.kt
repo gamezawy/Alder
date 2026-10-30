@@ -32,7 +32,10 @@ object Jellyfin {
     fun account(context: Context): JellyfinAccount? {
         val p = prefs(context)
         val server = p.getString(key(context, "server"), null) ?: return null
-        val token = SecureStorage.decrypt(p.getString(key(context, "token"), null)) ?: return null
+        val storedToken = p.getString(key(context, "token"), null).orEmpty()
+        val token = SecureStorage.decrypt(storedToken) ?: storedToken.takeIf { it.isNotBlank() }?.also { legacy ->
+            runCatching { p.edit().putString(key(context, "token"), SecureStorage.encrypt(legacy)).apply() }
+        } ?: return null
         val userId = p.getString(key(context, "userId"), null) ?: return null
         return JellyfinAccount(server, token, userId, p.getString(key(context, "username"), "").orEmpty())
     }
