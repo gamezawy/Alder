@@ -107,6 +107,16 @@ object Jellyfin {
             .optJSONArray("Items").toItems()
     }
 
+    fun search(context: Context, query: String, limit: Int = 30): List<JellyfinItem> {
+        val account = account(context) ?: return emptyList()
+        if (query.isBlank()) return emptyList()
+        val response = JSONObject(request(context, "/Users/" + encode(account.userId) + "/Items",
+            mapOf("UserId" to account.userId, "SearchTerm" to query, "Recursive" to "true",
+                "IncludeItemTypes" to "Movie,Series,Episode", "Limit" to limit.coerceIn(1, 100).toString(),
+                "Fields" to "Overview,RunTimeTicks,UserData,ProductionYear,ImageTags")))
+        return response.optJSONArray("Items").toItems()
+    }
+
     fun views(context: Context): List<JellyfinItem> {
         val account = account(context) ?: return emptyList()
         return JSONObject(request(context, "/Users/" + encode(account.userId) + "/Views"))
