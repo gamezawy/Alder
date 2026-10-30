@@ -747,7 +747,7 @@ class MainActivity : Screen() {
             contentDescription = getString(R.string.nav_search)
             setPadding(dp(13), dp(7), dp(13), dp(7))
             setOnFocusChangeListener { _, _ -> styleNav() }
-            setOnClickListener { startActivity(Intent(this@MainActivity, SearchActivity::class.java)) }
+            setOnClickListener { startActivity(Intent(this@MainActivity, ProviderSearchActivity::class.java)) }
         }.inNav(width = dp(44), height = -1)
         // A page opens as soon as the remote rests on its name. OK on Shows or Movies goes to its genres. Live shows only
         // once the profile's add-ons have a live catalog ([showLiveTab]).
