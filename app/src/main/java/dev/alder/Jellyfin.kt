@@ -140,7 +140,12 @@ object Jellyfin {
         val sourceId = source.optString("Id").takeIf { it.isNotBlank() }
         val session = response.optString("PlaySessionId").takeIf { it.isNotBlank() }
         val direct = source.optBoolean("SupportsDirectPlay", true)
-        val stream = buildString {
+        val transcodePath = source.optString("TranscodingUrl").takeIf { it.isNotBlank() }
+            ?: response.optString("TranscodingUrl").takeIf { it.isNotBlank() }
+        val stream = if (!direct && transcodePath != null) {
+            if (transcodePath.startsWith("http", true)) transcodePath
+            else account.serverUrl + "/" + transcodePath.trimStart('/')
+        } else buildString {
             append(account.serverUrl).append("/Videos/").append(encode(itemId)).append("/stream?Static=true")
             if (sourceId != null) append("&MediaSourceId=").append(encode(sourceId))
             if (session != null) append("&PlaySessionId=").append(encode(session))
