@@ -482,6 +482,7 @@
     <string name="profiles_your_name">Your name</string>
     <string name="profiles_getting_code">Getting a sign-in code…</string>
     <string name="profiles_back">← Back</string>
+    <string name="profiles_setup_later">Set up later</string>
     <string name="profiles_connect">Connect Stremio</string>
     <string name="profiles_signed_out">Stremio signed %1$s out of this TV. Scan with %1$s\'s phone to connect again. %1$s\'s settings and PIN stay.</string>
     <string name="profiles_scan">Scan with %1$s\'s phone. Stremio opens and asks to sign in this TV.</string>
