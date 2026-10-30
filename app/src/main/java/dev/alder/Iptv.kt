@@ -104,12 +104,12 @@ object Iptv {
 
     private fun parseExtInf(line: String): Pending {
         val metadata = line.substringAfter("#EXTINF:").substringBeforeLast(',', "")
-        val attrs = Regex("""([A-Za-z0-9_-]+)\\s*=\\s*("(?:[^"]*)"|'(?:[^']*)'|[^,\\s]*)""")
+        val (metadata, displayName) = splitExtInf(line)
+        val attrs = Regex("""([A-Za-z0-9_-]+)\s*=\s*("(?:[^"]*)"|'(?:[^']*)'|[^,\s]*)""")
             .findAll(metadata)
             .associate { match ->
                 match.groupValues[1].lowercase(Locale.ROOT) to match.groupValues[2].removeSurrounding("\"").removeSurrounding("'")
             }
-        val displayName = line.substringAfterLast(',', "").trim()
         return Pending(
             name = displayName.ifBlank { attrs["tvg-name"].orEmpty() },
             group = attrs["group-title"].orEmpty(),
@@ -117,6 +117,22 @@ object Iptv {
             logo = attrs["tvg-logo"]?.takeIf { validStreamUrl(it) },
             catchup = attrs["catchup"]?.takeIf { it.isNotBlank() }
         )
+    }
+
+    private fun splitExtInf(line: String): Pair<String, String> {
+        val value = line.substringAfter("#EXTINF:")
+        var quote: Char? = null
+        for (index in value.indices) {
+            val char = value[index]
+            if (quote != null) {
+                if (char == quote) quote = null
+            } else if (char == '"' || char == '\'') {
+                quote = char
+            } else if (char == ',') {
+                return value.substring(0, index) to value.substring(index + 1).trim()
+            }
+        }
+        return value to ""
     }
 
     private fun validStreamUrl(value: String): Boolean = runCatching {
