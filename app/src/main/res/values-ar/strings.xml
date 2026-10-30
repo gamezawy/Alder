@@ -199,6 +199,7 @@
     <string name="tracks_pinned">المثبتة</string>
     <string name="track_in_file">في الملف</string>
     <string name="profiles_back">← رجوع</string>
+    <string name="profiles_setup_later">الإعداد لاحقًا</string>
     <string name="profiles_continue">متابعة    →</string>
     <string name="profiles_continue_anyway">المتابعة على أي حال</string>
     <string name="profiles_name_to_continue">أدخل اسمًا للمتابعة.</string>
