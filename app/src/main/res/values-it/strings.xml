@@ -488,6 +488,7 @@
     <string name="profiles_your_name">Il tuo nome</string>
     <string name="profiles_getting_code">Richiesta di un codice di accesso…</string>
     <string name="profiles_back">← Indietro</string>
+    <string name="profiles_setup_later">Configura più tardi</string>
     <string name="profiles_connect">Collega Stremio</string>
     <string name="profiles_signed_out">Stremio ha disconnesso %1$s da questa TV. Inquadra con il telefono di %1$s per ricollegarti. Impostazioni e PIN di %1$s restano.</string>
     <string name="profiles_scan">Inquadra con il telefono di %1$s. Stremio si apre e chiede di collegare questa TV.</string>
