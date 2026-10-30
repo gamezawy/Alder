@@ -826,10 +826,9 @@ class MainActivity : Screen() {
     private fun renderHomeContinueRow(token: Int, opened: Long = android.os.SystemClock.uptimeMillis()) {
         val slot = homeContinueSlot ?: return
         if (token != generation || page != Page.HOME || isFinishing || isDestroyed) return
-        val preferred = if (Settings.sourcePriority(this) == "stremio")
-            stremioContinueForHome else jellyfinContinueForHome
-        val secondary = if (preferred === stremioContinueForHome)
-            jellyfinContinueForHome else stremioContinueForHome
+        val preferStremio = Settings.sourcePriority(this) == "stremio"
+        val preferred = if (preferStremio) stremioContinueForHome else jellyfinContinueForHome
+        val secondary = if (preferStremio) jellyfinContinueForHome else stremioContinueForHome
         val seen = hashSetOf<String>()
         val items = (preferred + secondary).filter { item ->
             val title = item.name.lowercase(Locale.ROOT).filter { it.isLetterOrDigit() }
