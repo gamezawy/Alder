@@ -530,4 +530,6 @@
     <string name="iptv_load_failed">Não foi possível carregar a lista. Verifique o endereço e tente novamente.</string>
     <string name="iptv_no_channels">Não há canais neste grupo.</string>
     <string name="iptv_playlist_url_hint">URL da lista M3U ou M3U8</string>
+    <string name="searching_providers">A pesquisar no Jellyfin e Stremio…</string>
+    <string name="search_provider_results">%1$d resultados nos seus fornecedores</string>
 </resources>
