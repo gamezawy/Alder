@@ -155,11 +155,11 @@ object Jellyfin {
         val sources = response.optJSONArray("MediaSources") ?: JSONArray()
         if (sources.length() == 0) throw JellyfinException("Jellyfin did not provide a playable media source.")
         val source = (0 until sources.length()).map { sources.getJSONObject(it) }
-            .firstOrNull { it.optBoolean("SupportsDirectPlay") || it.optBoolean("SupportsDirectStream") }
+            .firstOrNull { it.optBoolean("SupportsDirectPlay", true) || it.optBoolean("SupportsDirectStream") }
             ?: sources.getJSONObject(0)
         val sourceId = source.optString("Id").takeIf { it.isNotBlank() }
         val session = response.optString("PlaySessionId").takeIf { it.isNotBlank() }
-        val direct = source.optBoolean("SupportsDirectPlay") || source.optBoolean("SupportsDirectStream")
+        val direct = source.optBoolean("SupportsDirectPlay", true) || source.optBoolean("SupportsDirectStream")
         val transcodePath = source.optString("TranscodingUrl").takeIf { it.isNotBlank() }
             ?: response.optString("TranscodingUrl").takeIf { it.isNotBlank() }
         val stream = if (!direct && transcodePath != null) {
