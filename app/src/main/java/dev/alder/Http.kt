@@ -26,8 +26,9 @@ object Http {
     fun get(url: String, keep: Boolean = false, timeoutMs: Int = 20_000, strict: Boolean = false, headers: Map<String, String> = emptyMap()): String =
         text(url, null, keep, timeoutMs, strict, headers)
 
-    fun post(url: String, json: String, keep: Boolean = false, timeoutMs: Int = 20_000, headers: Map<String, String> = emptyMap()): String =
-        text(url, json, keep, timeoutMs, false, headers)
+    fun post(url: String, json: String, keep: Boolean = false, timeoutMs: Int = 20_000,
+             headers: Map<String, String> = emptyMap(), strict: Boolean = false): String =
+        text(url, json, keep, timeoutMs, strict, headers)
 
     fun bytes(url: String): ByteArray = request(url, null, cache = true).second
 
