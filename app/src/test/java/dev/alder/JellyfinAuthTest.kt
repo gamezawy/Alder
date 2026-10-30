@@ -30,7 +30,7 @@ class JellyfinAuthTest {
     }
 
     private fun episode(id: String, season: Int?, number: Int?, played: Boolean = false, position: Long = 0L) =
-        JellyfinItem(id, id, "Episode", null, null, null, played, position,
+        JellyfinItem(id, id, "Episode", "", null, null, null, played, position,
             seasonNumber = season, episodeNumber = number)
 
     @Test fun episodesAreOrderedBySeasonAndEpisodeWithoutServerSortFields() {
