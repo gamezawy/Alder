@@ -224,6 +224,18 @@ object Jellyfin {
         responseCache.keys.removeIf { it.startsWith(profileId + "|") }
     }
 
+    /** Refresh only progress-dependent shelves after playback; keep library, details and favorites cached. */
+    fun invalidatePlaybackCache(context: Context) {
+        val account = account(context) ?: return
+        val profileId = Profiles.active(context)?.id ?: "none"
+        val prefix = "$profileId|${account.serverUrl}|${account.userId}|"
+        val resumePath = "|/Users/${encode(account.userId)}/Items/Resume|"
+        val latestPath = "|/Users/${encode(account.userId)}/Items/Latest|"
+        responseCache.keys.removeIf { key ->
+            key.startsWith(prefix) && (key.contains(resumePath) || key.contains(latestPath))
+        }
+    }
+
     fun items(context: Context, parentId: String? = null, includeTypes: List<String> = listOf("Movie", "Series"),
               limit: Int = 100, startIndex: Int = 0): List<JellyfinItem> {
         val account = account(context) ?: return emptyList()
