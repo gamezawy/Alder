@@ -570,8 +570,9 @@ class SettingsActivity : Screen() {
                 }
                 countRows()
                 choiceRow(Choice("startTab", getString(R.string.default_tab), getString(R.string.default_tab_hint),
-                    listOf("home" to getString(R.string.tab_home), "movies" to getString(R.string.tab_movies),
-                        "shows" to getString(R.string.tab_shows), "library" to getString(R.string.tab_my_list)), perProfile = true))
+                    listOf("home" to getString(R.string.tab_home), "library" to getString(R.string.provider_library),
+                        "stremio" to getString(R.string.provider_stremio), "movies" to getString(R.string.tab_movies),
+                        "shows" to getString(R.string.tab_shows)), perProfile = true))
                 choiceRow(Choice("showMovies", getString(R.string.movies_tab), getString(R.string.movies_tab_hint), onOff(), perProfile = true))
                 choiceRow(Choice("showShows", getString(R.string.shows_tab), getString(R.string.shows_tab_hint), onOff(), perProfile = true))
                 choiceRow(Choice("showLive", getString(R.string.live_tab), getString(R.string.live_tab_hint), onOff(), perProfile = true))
