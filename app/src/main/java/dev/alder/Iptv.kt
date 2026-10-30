@@ -29,6 +29,13 @@ object Iptv {
     private fun key(context: Context, name: String) = name + "@" + (Profiles.active(context)?.id ?: "none")
 
     fun playlistUrl(context: Context) = prefs(context).getString(key(context, "playlistUrl"), "").orEmpty()
+    fun sourceSummary(context: Context): String {
+        val p = prefs(context)
+        return if (p.getString(key(context, "playlistType"), "m3u") == "xtream")
+            p.getString(key(context, "xtreamServer"), "").orEmpty()
+        else playlistUrl(context)
+    }
+
     fun setPlaylistUrl(context: Context, value: String) =
         prefs(context).edit().putString(key(context, "playlistUrl"), value.trim())
             .putString(key(context, "playlistType"), "m3u").remove(key(context, "xtreamServer"))
