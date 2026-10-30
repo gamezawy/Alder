@@ -552,4 +552,12 @@
     <string name="iptv_password">Xtream पासवर्ड</string>
     <string name="iptv_xtream">Xtream Codes</string>
     <string name="iptv_xtream_hint">सर्वर पते और लॉगिन के साथ Xtream Codes प्रदाता कनेक्ट करें।</string>
+    <string name="watch_status_title">देखने की स्थिति चुनें</string>
+    <string name="watch_status_none">कोई स्थिति नहीं</string>
+    <string name="watch_status_favorite">पसंदीदा</string>
+    <string name="watch_status_watching">देख रहे हैं</string>
+    <string name="watch_status_on_hold">रोक रखा है</string>
+    <string name="watch_status_dropped">छोड़ दिया</string>
+    <string name="watch_status_watched">देख लिया</string>
+    <string name="iptv_favorites">पसंदीदा</string>
 </resources>
