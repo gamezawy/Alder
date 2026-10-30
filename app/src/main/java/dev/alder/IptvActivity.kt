@@ -14,7 +14,7 @@ class IptvActivity : Screen() {
     private lateinit var status: TextView
     private lateinit var list: LinearLayout
     private var playlist = IptvPlaylist(emptyList())
-    private var selectedGroup = "All"
+    private var selectedGroup = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -54,7 +54,7 @@ class IptvActivity : Screen() {
             result.onSuccess {
                 playlist = it
                 status.text = getString(R.string.iptv_channel_count, it.channels.size)
-                selectedGroup = "All"
+                selectedGroup = getString(R.string.filter_all)
                 showGroups()
             }.onFailure {
                 status.text = getString(R.string.iptv_load_failed)
@@ -65,7 +65,7 @@ class IptvActivity : Screen() {
 
     private fun showGroups() {
         list.removeAllViews()
-        val groups = listOf("All") + playlist.groups()
+        val groups = listOf(getString(R.string.filter_all), getString(R.string.iptv_favorites)) + playlist.groups()
         val groupRow = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         groups.forEach { group ->
             groupRow.addView(action(group) {
@@ -79,7 +79,13 @@ class IptvActivity : Screen() {
 
     private fun showChannels() {
         while (list.childCount > 1) list.removeViewAt(1)
-        val channels = if (selectedGroup == "All") playlist.channels else playlist.inGroup(selectedGroup)
+        val channels = when (selectedGroup) {
+            getString(R.string.filter_all) -> playlist.channels
+            getString(R.string.iptv_favorites) -> playlist.channels.filter {
+                it.streamUrl in WatchStatuses.items(this, "iptv", WatchStatus.FAVORITE)
+            }
+            else -> playlist.inGroup(selectedGroup)
+        }
         channels.forEach { channel ->
             val row = text(channel.name, BODY, color = TEXT).apply {
                 setPadding(dp(12), dp(12), dp(12), dp(12))
@@ -93,9 +99,29 @@ class IptvActivity : Screen() {
                         .putExtra("referrer", channel.referrer))
                 }
             }
+            row.setOnLongClickListener { setWatchStatus(channel); true }
             list.addView(row, LinearLayout.LayoutParams(-1, -2))
         }
         if (channels.isEmpty()) list.addView(text(getString(R.string.iptv_no_channels), BODY, color = TEXT_2))
+    }
+
+    private fun setWatchStatus(channel: IptvChannel) {
+        val statuses = WatchStatus.entries
+        val labels = statuses.map { status ->
+            getString(when (status) {
+                WatchStatus.NONE -> R.string.watch_status_none
+                WatchStatus.FAVORITE -> R.string.watch_status_favorite
+                WatchStatus.WATCHING -> R.string.watch_status_watching
+                WatchStatus.ON_HOLD -> R.string.watch_status_on_hold
+                WatchStatus.DROPPED -> R.string.watch_status_dropped
+                WatchStatus.WATCHED -> R.string.watch_status_watched
+            })
+        }
+        choose(getString(R.string.watch_status_title), labels, channel.name,
+            checked = WatchStatuses.get(this, "iptv", channel.streamUrl).ordinal) { index ->
+            WatchStatuses.set(this, "iptv", channel.streamUrl, statuses[index])
+            showGroups()
+        }
     }
 
     private fun editPlaylist() {
