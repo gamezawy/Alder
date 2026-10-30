@@ -72,12 +72,13 @@ object Jellyfin {
         val raw = value.trim().trimEnd('/')
         require(raw.isNotEmpty()) { "Enter a Jellyfin server address." }
         val uri = java.net.URI(if ("://" in raw) raw else "http://$raw")
-        require(uri.scheme?.lowercase() in setOf("http", "https") && !uri.host.isNullOrBlank()) {
+        val scheme = uri.scheme?.lowercase()
+        require(scheme in setOf("http", "https") && !uri.host.isNullOrBlank()) {
             "Use a valid HTTP or HTTPS server address."
         }
         require(uri.userInfo == null) { "The server address must not contain credentials." }
         // Users often paste Jellyfin's browser URL (/web/#/home). API requests must target the server root.
-        return java.net.URI(uri.scheme.lowercase(), null, uri.host, uri.port, null, null, null)
+        return java.net.URI(scheme, null, uri.host, uri.port, null, null, null)
             .toASCIIString().trimEnd('/')
     }
 
