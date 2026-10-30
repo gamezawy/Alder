@@ -53,6 +53,16 @@
     <string name="stremio_first">Stremio أولًا</string>
     <string name="jellyfin_settings">خادم Jellyfin</string>
     <string name="jellyfin_settings_hint">اتصل بخادم Jellyfin وحسابك. تُستخدم كلمة المرور لتسجيل الدخول فقط ولا يتم حفظها.</string>
+    <string name="jellyfin_discover">البحث عن خوادم Jellyfin على الشبكة</string>
+    <string name="jellyfin_discovering">جارٍ البحث على الشبكة المحلية…</string>
+    <string name="jellyfin_no_servers">لم يتم العثور على خوادم Jellyfin. أدخل عنوان الخادم يدويًا.</string>
+    <string name="jellyfin_servers_found">تم العثور على %1$d من خوادم Jellyfin.</string>
+    <string name="jellyfin_select_server">اختر خادم Jellyfin</string>
+    <string name="jellyfin_setup_title">اتصل بخادم Jellyfin</string>
+    <string name="jellyfin_setup_description">يمكن لـ Alder البحث عن خوادم Jellyfin على شبكتك المحلية، أو يمكنك إدخال عنوان الخادم يدويًا.</string>
+    <string name="jellyfin_setup_later">الإعداد لاحقًا</string>
+    <string name="jellyfin_connecting">جارٍ الاتصال بـ Jellyfin…</string>
+    <string name="iptv_browse_file">استعراض ملف M3U أو M3U8</string>
     <string name="jellyfin_server_address">عنوان الخادم، مثل http://192.168.1.10:8096</string>
     <string name="jellyfin_username">اسم المستخدم</string>
     <string name="jellyfin_password">كلمة المرور</string>
