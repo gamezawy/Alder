@@ -737,6 +737,11 @@ class MainActivity : Screen() {
             nav.addView(this, LinearLayout.LayoutParams(width, height).apply { if (nav.childCount > 0) marginStart = dp(NAV_GAP) })
         }
         // As tall as the words' pills (match parent), the glyph 18 dp inside it.
+        text(getString(R.string.provider_jellyfin_home), BODY).apply {
+            gravity = Gravity.CENTER
+            setPadding(dp(12), dp(4), dp(12), dp(2))
+            setOnClickListener { startActivity(Intent(this@MainActivity, JellyfinHomeActivity::class.java)) }
+        }.inNav()
         search = ImageView(this).apply {
             setImageResource(R.drawable.ic_search)
             contentDescription = getString(R.string.nav_search)
