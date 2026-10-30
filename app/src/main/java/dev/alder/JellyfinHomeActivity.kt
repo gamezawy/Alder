@@ -172,26 +172,33 @@ class JellyfinHomeActivity : Screen() {
         })
         val row = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         items.forEach { item ->
-            val label = TextView(this).apply {
-                text = item.name
-                textSize = SMALL
-                setTextColor(TEXT)
-                maxLines = 2
-                gravity = Gravity.CENTER
-                setPadding(dp(10), dp(10), dp(10), dp(10))
+            val card = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(5), dp(5), dp(5), dp(5))
                 background = glass(9)
                 isFocusable = true
                 rowFocus(8)
+                val poster = android.widget.ImageView(this@JellyfinHomeActivity).apply {
+                    scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
+                    setBackgroundColor(0x33222222)
+                }
+                addView(poster, LinearLayout.LayoutParams(dp(158), dp(88)))
+                Images.load(Jellyfin.imageUrl(this@JellyfinHomeActivity, item.id, item.imageTag, 500),
+                    poster, dp(316))
+                addView(text(item.name, SMALL, color = TEXT).apply {
+                    maxLines = 2
+                    setPadding(dp(3), dp(6), dp(3), dp(2))
+                }, LinearLayout.LayoutParams(-1, -2))
                 setOnClickListener { play(item) }
                 setOnLongClickListener { setWatchStatus(item); true }
             }
-            row.addView(label, LinearLayout.LayoutParams(dp(170), dp(76)).apply { marginEnd = dp(8) })
+            row.addView(card, LinearLayout.LayoutParams(dp(168), dp(138)).apply { marginEnd = dp(8) })
         }
         val horizontal = HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
             addView(row)
         }
-        body.addView(horizontal, LinearLayout.LayoutParams(-1, dp(88)))
+        body.addView(horizontal, LinearLayout.LayoutParams(-1, dp(144)))
     }
 
     private fun statusLabel(status: WatchStatus): Int = when (status) {
