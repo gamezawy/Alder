@@ -75,6 +75,8 @@ class SearchActivity : Screen() {
     private var firstResult: View? = null
     private var focused: Meta? = null
     private var numeric = false
+    private var keyboardArabic = false
+    private var languageLabel: TextView? = null
     private var request = 0
     private val searchTasks = mutableListOf<Future<*>>()
     private val typed = Runnable { search(false) }
@@ -83,6 +85,7 @@ class SearchActivity : Screen() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val key = authKey ?: return finish()
+        keyboardArabic = getSharedPreferences("settings", MODE_PRIVATE).getBoolean("searchKeyboardArabic", false)
         art = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; alpha = 0f }
         artBack = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP }
         val width = resources.displayMetrics.widthPixels / resources.displayMetrics.density
@@ -311,6 +314,7 @@ class SearchActivity : Screen() {
     private fun buildKeyboard() {
         val letterRows = listOf("qwertyuiop", "asdfghjkl", "zxcvbnm")
         val letters = letterRows.joinToString("")
+        val arabicLetters = listOf("ضصثقفغعهخح", "شسيبلاتنم", "ئءؤرلاى").joinToString("")
         letterRows.forEach { rowLetters ->
             val row = keyRow()
             rowLetters.forEachIndexed { column, letter ->
@@ -326,13 +330,21 @@ class SearchActivity : Screen() {
             numeric = !numeric
             val symbols = "1234567890@#$%&*()!?.,:/+"
             characterKeys.forEachIndexed { index, view ->
-                view.text = if (numeric) symbols.getOrNull(index)?.toString() ?: "·" else letters[index].toString()
+                view.text = if (numeric) symbols.getOrNull(index)?.toString() ?: "·" else (if (keyboardArabic) arabicLetters else letters).getOrNull(index)?.toString() ?: "·"
             }
             modeLabel?.text = if (numeric) "ABC" else "123"
         }
         modeLabel = mode
+        languageLabel = key(if (keyboardArabic) "EN" else "ع", controls, 2, false) {
+            keyboardArabic = !keyboardArabic
+            getSharedPreferences("settings", MODE_PRIVATE).edit().putBoolean("searchKeyboardArabic", keyboardArabic).apply()
+            characterKeys.forEachIndexed { index, view ->
+                if (!numeric) view.text = (if (keyboardArabic) arabicLetters else letters).getOrNull(index)?.toString() ?: "·"
+            }
+            languageLabel?.text = if (keyboardArabic) "EN" else "ع"
+        }
         key("−", controls, 2, false) { append("-") }
-        key("⌫", controls, 5, true) { delete() }
+        key("⌫", controls, 3, true) { delete() }
         val last = keyRow()
         key(getString(R.string.search_space).uppercase(), last, 8, true) { append(" ") }
         last.addView(ImageView(this).apply {
