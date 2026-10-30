@@ -189,10 +189,15 @@ class MainActivity : Screen() {
     private val rows = mutableListOf<Row>()
     private data class JellyfinShelf(
         val title: String, val items: List<JellyfinItem>, val parentId: String? = null,
-        val includeTypes: List<String> = emptyList(), val pageable: Boolean = false, val wide: Boolean = false
+        val includeTypes: List<String> = emptyList(), val pageable: Boolean = false,
+        val wide: Boolean = false, val continueWatching: Boolean = false
     )
     private val jellyfinShelfCache = java.util.concurrent.ConcurrentHashMap<String, List<JellyfinShelf>>()
     private var refreshJellyfinRows: (() -> Unit)? = null
+    private var homeContinueSlot: FrameLayout? = null
+    private var stremioContinueForHome: List<Item> = emptyList()
+    private var jellyfinContinueForHome: List<Item> = emptyList()
+    private var homeContinueSignature: String? = null
     private var focusedSomething = false
     private val metas = mutableMapOf<String, Meta>() // full details, fetched once per title
 
@@ -817,6 +822,42 @@ class MainActivity : Screen() {
 
     private var lastAddons: List<Addon> = emptyList()
 
+    /** Merge both providers into one Continue Watching row, preferring the configured source for duplicates. */
+    private fun renderHomeContinueRow(token: Int, opened: Long = android.os.SystemClock.uptimeMillis()) {
+        val slot = homeContinueSlot ?: return
+        if (token != generation || page != Page.HOME || isFinishing || isDestroyed) return
+        val preferred = if (Settings.sourcePriority(this) == "stremio")
+            stremioContinueForHome else jellyfinContinueForHome
+        val secondary = if (preferred === stremioContinueForHome)
+            jellyfinContinueForHome else stremioContinueForHome
+        val seen = hashSetOf<String>()
+        val items = (preferred + secondary).filter { item ->
+            val title = item.name.lowercase(Locale.ROOT).filter { it.isLetterOrDigit() }
+            val year = item.facts.firstOrNull { it.firstOrNull()?.isDigit() == true }?.take(4).orEmpty()
+            val type = if (item.type == "episode") "series" else item.type
+            seen.add("${type}|${title}|${year}")
+        }
+        val signature = items.joinToString("|") {
+            "${it.id}:${it.progress}:${it.resume}:${it.timeLeft.orEmpty()}"
+        }
+        if (signature == homeContinueSignature) return
+        val focusedTag = currentFocus?.takeIf { isInside(it, slot) }?.tag
+        homeContinueSignature = signature
+        rows.filter { isInside(it.view, slot) }.forEach { old ->
+            old.cards.forEach { it.unload() }
+            rows.remove(old)
+        }
+        slot.removeAllViews()
+        if (items.isNotEmpty()) {
+            slot.addView(row(getString(R.string.row_continue), items.take(START), later(items)).view)
+            startCinema(items.take(CINEMA_MAX))
+            android.util.Log.d("Alder", "unified Continue in ${android.os.SystemClock.uptimeMillis() - opened} ms")
+        }
+        if (focusedTag != null) (slot.findViewWithTag<View>(focusedTag)
+            ?: rows.firstOrNull { isInside(it.view, slot) }?.cards?.firstOrNull())?.requestFocus()
+        main.post(::updateImages)
+    }
+
     /**
      * Jellyfin shelves are ordinary Alder rows, placed before Stremio's catalog rows. A warm in-memory snapshot is
      * drawn immediately; the server refresh runs behind it and only redraws when the data actually changed.
@@ -841,12 +882,17 @@ class MainActivity : Screen() {
             val focusedTag = currentFocus?.takeIf { isInside(it, shelfSlot) }?.tag
             shown = next
             jellyfinShelfCache[cacheKey] = shelves
+            if (p == Page.HOME) {
+                jellyfinContinueForHome = shelves.firstOrNull { it.continueWatching }
+                    ?.items?.map(::jellyfinHomeItem).orEmpty()
+                renderHomeContinueRow(token, opened)
+            }
             rows.filter { isInside(it.view, shelfSlot) }.forEach { old ->
                 old.cards.forEach { it.unload() }
                 rows.remove(old)
             }
             shelfSlot.removeAllViews()
-            shelves.forEach { shelf ->
+            shelves.filterNot { it.continueWatching }.forEach { shelf ->
                 val all = shelf.items.map(::jellyfinHomeItem)
                 if (all.isEmpty()) return@forEach
                 val more: ((Int) -> List<Item>)? = if (shelf.pageable && shelf.parentId != null) { from ->
@@ -885,7 +931,7 @@ class MainActivity : Screen() {
                 val resume = runCatching { Jellyfin.resumeItems(applicationContext) }.getOrDefault(emptyList())
                     .filter { it.type.equals("Movie", true) || it.type.equals("Series", true) || it.type.equals("Episode", true) }
                 if (resume.isNotEmpty()) add(JellyfinShelf(
-                    getString(R.string.provider_continue_watching) + " · Jellyfin", resume, wide = true
+                    "", resume, continueWatching = true
                 ))
                 views.forEach { view ->
                     val latest = runCatching { Jellyfin.latestItems(applicationContext, view.id, 18) }
@@ -1376,6 +1422,10 @@ class MainActivity : Screen() {
         content.removeAllViews()
         rows.forEach { r -> r.cards.forEach { it.unload() } }
         rows.clear()
+        homeContinueSlot = if (p == Page.HOME) slot() else null
+        stremioContinueForHome = emptyList()
+        jellyfinContinueForHome = emptyList()
+        homeContinueSignature = null
         genreStrip.animate().cancel()
         genreStrip.alpha = 1f
         genreStrip.visibility = if (p.isCatalog) View.INVISIBLE else if (grid) View.VISIBLE else View.GONE
@@ -1413,7 +1463,7 @@ class MainActivity : Screen() {
         }
 
         if (p == Page.HOME || p == Page.LIBRARY) {
-            val slot = slot()
+            val slot = if (p == Page.HOME) homeContinueSlot ?: slot() else slot()
             if (grid) librarySlot = slot
             var shown: String? = null // what's on screen, to tell whether the fresh library changed anything
             var fresh = false
@@ -1444,12 +1494,8 @@ class MainActivity : Screen() {
                 rows.filter { isInside(it.view, slot) }.forEach { r -> r.cards.forEach { it.unload() }; rows.remove(r) }
                 slot.removeAllViews()
                 if (p == Page.HOME) {
-                    val items = cw.map(::libraryItem)
-                    if (items.isNotEmpty()) {
-                        slot.addView(row(getString(R.string.row_continue), items.take(START), later(items)).view)
-                        android.util.Log.d("Alder", "page ${p.label}: Continue in ${android.os.SystemClock.uptimeMillis() - opened} ms")
-                        startCinema(items.take(CINEMA_MAX))
-                    }
+                    stremioContinueForHome = cw.map(::libraryItem)
+                    renderHomeContinueRow(g, opened)
                 } else {
                     showLibrary(slot)
                 }
