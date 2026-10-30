@@ -11,7 +11,7 @@ import java.net.NetworkInterface
 import java.net.SocketTimeoutException
 
 data class JellyfinServer(val address: String, val name: String, val id: String)
-data class JellyfinAccount(val serverUrl: String, val accessToken: String, val userId: String, val username: String)
+data class JellyfinAccount(val serverUrl: String, val accessToken: String, val userId: String, val username: String, val useModernAuthorization: Boolean = true)
 data class JellyfinItem(
     val id: String, val name: String, val type: String, val overview: String,
     val imageTag: String?, val year: Int?, val runTimeTicks: Long?,
@@ -43,7 +43,8 @@ object Jellyfin {
             runCatching { p.edit().putString(key(context, "token"), SecureStorage.encrypt(legacy)).apply() }
         } ?: return null
         val userId = p.getString(key(context, "userId"), null) ?: return null
-        return JellyfinAccount(server, token, userId, p.getString(key(context, "username"), "").orEmpty())
+        return JellyfinAccount(server, token, userId, p.getString(key(context, "username"), "").orEmpty(),
+            p.getBoolean(key(context, "modernAuthorization"), true))
     }
 
     fun serverUrl(context: Context) = prefs(context).getString(key(context, "server"), "").orEmpty()
@@ -55,17 +56,18 @@ object Jellyfin {
     fun saveAccount(context: Context, account: JellyfinAccount) {
         prefs(context).edit().putString(key(context, "server"), normalizeServerUrl(account.serverUrl))
             .putString(key(context, "token"), SecureStorage.encrypt(account.accessToken)).putString(key(context, "userId"), account.userId)
-            .putString(key(context, "username"), account.username).apply()
+            .putString(key(context, "username"), account.username)
+            .putBoolean(key(context, "modernAuthorization"), account.useModernAuthorization).apply()
     }
 
     fun disconnect(context: Context) {
         prefs(context).edit().remove(key(context, "token")).remove(key(context, "userId"))
-            .remove(key(context, "username")).apply()
+            .remove(key(context, "username")).remove(key(context, "modernAuthorization")).apply()
     }
 
     fun forgetProfile(context: Context, profileId: String) {
         prefs(context).edit().remove("server@$profileId").remove("token@$profileId")
-            .remove("userId@$profileId").remove("username@$profileId").apply()
+            .remove("userId@$profileId").remove("username@$profileId").remove("modernAuthorization@$profileId").apply()
     }
 
     fun normalizeServerUrl(value: String): String {
@@ -127,11 +129,17 @@ object Jellyfin {
         val server = normalizeServerUrl(serverUrl)
         require(username.isNotBlank()) { "Enter your Jellyfin username." }
         require(password.isNotEmpty()) { "Enter your Jellyfin password." }
-        val auth = "MediaBrowser Client=\"$CLIENT_NAME\", Device=\"$DEVICE_NAME\", DeviceId=\"$DEVICE_ID\", Version=\"1\""
+        // Jellyfin 12 disables deprecated X-Emby authorization. Detect the server version first;
+        // if a proxy hides public info, the standard Authorization scheme remains supported by older servers.
+        val serverVersion = runCatching {
+            JSONObject(Http.get("$server/System/Info/Public", timeoutMs = 10_000)).optString("Version")
+        }.getOrNull()
+        val useModernAuthorization = JellyfinAuth.usesModernAuthorization(serverVersion)
         val body = JSONObject().put("Username", username).put("Pw", password).toString()
         val answer = try {
             Http.post("$server/Users/AuthenticateByName", body, timeoutMs = 20_000,
-                headers = mapOf("X-Emby-Authorization" to auth, "Accept" to "application/json"), strict = true)
+                headers = JellyfinAuth.loginHeaders(username, useModernAuthorization) +
+                    ("Accept" to "application/json"), strict = true)
         } catch (e: HttpError) {
             val detail = runCatching { JSONObject(e.responseBody.orEmpty()).optString("Message") }.getOrNull()
                 .orEmpty().ifBlank { e.responseBody.orEmpty().take(300) }
@@ -143,7 +151,7 @@ object Jellyfin {
         val user = json.optJSONObject("User")
         val userId = user?.optString("Id").orEmpty()
         if (token.isBlank() || userId.isBlank()) throw JellyfinException("Jellyfin did not return an access token and user ID.")
-        return JellyfinAccount(server, token, userId, user?.optString("Name").orEmpty().ifBlank { username })
+        return JellyfinAccount(server, token, userId, user?.optString("Name").orEmpty().ifBlank { username }, useModernAuthorization)
     }
 
     fun request(context: Context, path: String, query: Map<String, String> = emptyMap()): String {
@@ -153,7 +161,8 @@ object Jellyfin {
             encode(it.key) + "=" + encode(it.value)
         }
         return Http.get(account.serverUrl + path + suffix, timeoutMs = 20_000,
-            headers = mapOf("X-Emby-Token" to account.accessToken, "Accept" to "application/json"))
+            headers = JellyfinAuth.tokenHeaders(account.accessToken, account.useModernAuthorization) +
+                ("Accept" to "application/json"))
     }
 
     fun items(context: Context, parentId: String? = null, includeTypes: List<String> = listOf("Movie", "Series"),
@@ -220,7 +229,8 @@ object Jellyfin {
         val account = account(context) ?: throw JellyfinException("Jellyfin is not connected.")
         val body = JSONObject().put("UserId", account.userId).toString()
         val response = JSONObject(Http.post(account.serverUrl + "/Items/" + encode(itemId) + "/PlaybackInfo",
-            body, headers = mapOf("X-Emby-Token" to account.accessToken, "Accept" to "application/json")))
+            body, headers = JellyfinAuth.tokenHeaders(account.accessToken, account.useModernAuthorization) +
+                ("Accept" to "application/json")))
         val sources = response.optJSONArray("MediaSources") ?: JSONArray()
         if (sources.length() == 0) throw JellyfinException("Jellyfin did not provide a playable media source.")
         val source = (0 until sources.length()).map { sources.getJSONObject(it) }
@@ -234,12 +244,12 @@ object Jellyfin {
         val stream = if (!direct && transcodePath != null) {
             val url = if (transcodePath.startsWith("http", true)) transcodePath
                 else account.serverUrl + "/" + transcodePath.trimStart('/')
-            if (url.contains("api_key=", true)) url else url + (if ("?" in url) "&" else "?") + "api_key=" + encode(account.accessToken)
+            withStreamAuthorization(url, account)
         } else buildString {
             append(account.serverUrl).append("/Videos/").append(encode(itemId)).append("/stream?Static=").append(direct)
             if (sourceId != null) append("&MediaSourceId=").append(encode(sourceId))
             if (session != null) append("&PlaySessionId=").append(encode(session))
-            append("&api_key=").append(encode(account.accessToken))
+            if (!account.useModernAuthorization) append("&api_key=").append(encode(account.accessToken))
         }
         return JellyfinPlayback(itemId, sourceId, session, stream, direct)
     }
@@ -251,7 +261,8 @@ object Jellyfin {
         mediaSourceId?.let { body.put("MediaSourceId", it) }
         playSessionId?.let { body.put("PlaySessionId", it) }
         Http.post(account.serverUrl + "/Sessions/Playing", body.toString(),
-            headers = mapOf("X-Emby-Token" to account.accessToken, "Accept" to "application/json"))
+            headers = JellyfinAuth.tokenHeaders(account.accessToken, account.useModernAuthorization) +
+                ("Accept" to "application/json"))
     }
 
     fun reportPlayback(context: Context, itemId: String, positionTicks: Long, paused: Boolean = false, playSessionId: String? = null) {
@@ -259,7 +270,8 @@ object Jellyfin {
         val body = JSONObject().put("ItemId", itemId).put("PositionTicks", positionTicks).put("IsPaused", paused)
         playSessionId?.let { body.put("PlaySessionId", it) }
         Http.post(account.serverUrl + "/Sessions/Playing/Progress", body.toString(),
-            headers = mapOf("X-Emby-Token" to account.accessToken, "Accept" to "application/json"))
+            headers = JellyfinAuth.tokenHeaders(account.accessToken, account.useModernAuthorization) +
+                ("Accept" to "application/json"))
     }
 
     fun reportStopped(context: Context, itemId: String, positionTicks: Long, playSessionId: String? = null) {
@@ -267,13 +279,35 @@ object Jellyfin {
         val body = JSONObject().put("ItemId", itemId).put("PositionTicks", positionTicks)
         playSessionId?.let { body.put("PlaySessionId", it) }
         Http.post(account.serverUrl + "/Sessions/Playing/Stopped", body.toString(),
-            headers = mapOf("X-Emby-Token" to account.accessToken, "Accept" to "application/json"))
+            headers = JellyfinAuth.tokenHeaders(account.accessToken, account.useModernAuthorization) +
+                ("Accept" to "application/json"))
     }
     fun imageUrl(context: Context, itemId: String, tag: String?, maxWidth: Int = 600): String? {
         val account = account(context) ?: return null
         if (tag.isNullOrBlank()) return null
         return account.serverUrl + "/Items/" + encode(itemId) + "/Images/Primary?tag=" + encode(tag) +
-            "&maxWidth=" + maxWidth.coerceIn(100, 2000) + "&api_key=" + encode(account.accessToken)
+            "&maxWidth=" + maxWidth.coerceIn(100, 2000) + "&" + JellyfinAuth.apiKeyParameter(account.useModernAuthorization) + "=" + encode(account.accessToken)
+    }
+
+    /** Authorization for Media3 HTTP requests; Jellyfin 12 uses the standard header, not a URL token. */
+    fun authorizationHeaders(context: Context): Map<String, String> {
+        val account = account(context) ?: return emptyMap()
+        return JellyfinAuth.tokenHeaders(account.accessToken, account.useModernAuthorization)
+    }
+
+    private fun withStreamAuthorization(url: String, account: JellyfinAccount): String {
+        val fragmentAt = url.indexOf('#')
+        val fragment = if (fragmentAt >= 0) url.substring(fragmentAt) else ""
+        val withoutFragment = if (fragmentAt >= 0) url.substring(0, fragmentAt) else url
+        val base = withoutFragment.substringBefore('?')
+        val query = withoutFragment.substringAfter('?', "")
+        val retained = query.split('&').filter { part ->
+            part.isNotEmpty() && part.substringBefore('=').lowercase() !in setOf("api_key", "apikey")
+        }
+        val cleanUrl = base + if (retained.isEmpty()) "" else "?" + retained.joinToString("&")
+        if (account.useModernAuthorization) return cleanUrl + fragment
+        val separator = if ('?' in cleanUrl) "&" else "?"
+        return cleanUrl + separator + "api_key=" + encode(account.accessToken) + fragment
     }
 
     private fun encode(value: String) = URLEncoder.encode(value, Charsets.UTF_8.name())

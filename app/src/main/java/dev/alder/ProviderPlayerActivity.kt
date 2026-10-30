@@ -81,6 +81,7 @@ class ProviderPlayerActivity : Screen() {
         val headers = linkedMapOf<String, String>()
         intent.getStringExtra("userAgent")?.takeIf { it.isNotBlank() }?.let { headers["User-Agent"] = it }
         intent.getStringExtra("referrer")?.takeIf { it.isNotBlank() }?.let { headers["Referer"] = it }
+        if (itemId != null) headers.putAll(Jellyfin.authorizationHeaders(this))
         val dataSource = DefaultHttpDataSource.Factory().setUserAgent(Http.userAgent)
             .setDefaultRequestProperties(headers)
         val mediaSourceFactory = DefaultMediaSourceFactory(dataSource)
