@@ -482,6 +482,20 @@ class SettingsActivity : Screen() {
             Group.STREAMS -> {
                 presetRow()
                 streaming.forEach(::choiceRow)
+                choiceRow(Choice("sourcePriority", getString(R.string.source_priority), getString(R.string.source_priority_hint),
+                    listOf("jellyfin" to getString(R.string.jellyfin_first), "stremio" to getString(R.string.stremio_first))))
+                val jellyfinAccount = Jellyfin.account(this)
+                actionRow(getString(R.string.jellyfin_settings), jellyfinAccount?.username ?: getString(R.string.not_connected),
+                    getString(R.string.jellyfin_settings_hint), ::jellyfinDialog)
+                if (jellyfinAccount != null) actionRow(getString(R.string.jellyfin_disconnect), jellyfinAccount.serverUrl,
+                    getString(R.string.jellyfin_disconnect_hint)) {
+                    Jellyfin.disconnect(this)
+                    showGroup(Group.STREAMS)
+                }
+                actionRow(getString(R.string.iptv_settings), Iptv.playlistUrl(this).ifBlank { getString(R.string.not_configured) },
+                    getString(R.string.iptv_settings_hint), ::m3uDialog)
+                actionRow(getString(R.string.iptv_xtream), getString(R.string.iptv_xtream_hint),
+                    getString(R.string.iptv_xtream_hint), ::xtreamDialog)
                 Profiles.active(this)?.let { me ->
                     lateinit var value: TextView
                     value = actionRow(getString(R.string.share_streams), if (Profiles.sharesStreams(this, me.id)) on else off,
@@ -561,7 +575,11 @@ class SettingsActivity : Screen() {
                 choiceRow(Choice("blurThumbnails", getString(R.string.blur_thumbnails), getString(R.string.blur_thumbnails_hint),
                     listOf(false to off, true to on), perProfile = true))
             }
-            Group.LANGUAGE -> appLanguageRow()
+            Group.LANGUAGE -> {
+                appLanguageRow()
+                choiceRow(Choice("keyboardMode", getString(R.string.keyboard_mode), getString(R.string.keyboard_mode_hint),
+                    listOf("builtin" to getString(R.string.keyboard_builtin), "system" to getString(R.string.keyboard_system))))
+            }
             Group.STORAGE -> actionRow(getString(R.string.clear_storage), "", getString(R.string.clear_storage_hint)) {
                 choose(getString(R.string.clear_storage_title), listOf(getString(R.string.action_cancel), getString(R.string.action_clear)),
                     getString(R.string.clear_storage_desc)) { choice ->
@@ -674,6 +692,87 @@ class SettingsActivity : Screen() {
         }
     }.apply()
     private fun choice(key: String) = (streaming + pictureAndSound).first { it.key == key }
+
+
+    private fun jellyfinDialog() {
+        val layout = column(Gravity.START).apply { setPadding(dp(18), dp(10), dp(18), dp(6)) }
+        val server = android.widget.EditText(this).apply {
+            hint = getString(R.string.jellyfin_server_address)
+            setSingleLine()
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_URI
+            setText(Jellyfin.serverUrl(this@SettingsActivity))
+        }
+        val username = android.widget.EditText(this).apply {
+            hint = getString(R.string.jellyfin_username)
+            setSingleLine()
+        }
+        val password = android.widget.EditText(this).apply {
+            hint = getString(R.string.jellyfin_password)
+            setSingleLine()
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+        }
+        val error = text("", SMALL, color = 0xFFFF8A80.toInt())
+        layout.addView(server)
+        layout.addView(username)
+        layout.addView(password)
+        layout.addView(error)
+        val dialog = android.app.AlertDialog.Builder(this).setTitle(R.string.jellyfin_settings)
+            .setView(layout).setNegativeButton(R.string.action_cancel, null)
+            .setPositiveButton(R.string.jellyfin_connect, null).create()
+        dialog.setOnShowListener {
+            dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                error.text = ""
+                background({ Jellyfin.authenticate(server.text.toString(), username.text.toString(), password.text.toString()) }) { result ->
+                    result.onSuccess {
+                        Jellyfin.saveAccount(this, it)
+                        dialog.dismiss()
+                        showGroup(Group.STREAMS)
+                    }.onFailure {
+                        error.text = it.message ?: getString(R.string.jellyfin_signin_failed)
+                    }
+                }
+            }
+        }
+        dialog.show()
+    }
+
+    private fun m3uDialog() {
+        val input = android.widget.EditText(this).apply {
+            hint = getString(R.string.iptv_playlist_url_hint)
+            setSingleLine()
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_URI
+            setText(Iptv.playlistUrl(this@SettingsActivity))
+        }
+        android.app.AlertDialog.Builder(this).setTitle(R.string.iptv_settings).setView(input)
+            .setNegativeButton(R.string.action_cancel, null)
+            .setPositiveButton(R.string.action_save) { _, _ ->
+                Iptv.setPlaylistUrl(this, input.text.toString())
+                showGroup(Group.STREAMS)
+            }.show()
+    }
+
+    private fun xtreamDialog() {
+        val layout = column(Gravity.START).apply { setPadding(dp(18), dp(10), dp(18), dp(6)) }
+        val server = android.widget.EditText(this).apply { hint = getString(R.string.iptv_server_address); setSingleLine() }
+        val username = android.widget.EditText(this).apply { hint = getString(R.string.iptv_username); setSingleLine() }
+        val password = android.widget.EditText(this).apply {
+            hint = getString(R.string.iptv_password); setSingleLine()
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+        }
+        val error = text("", SMALL, color = 0xFFFF8A80.toInt())
+        layout.addView(server); layout.addView(username); layout.addView(password); layout.addView(error)
+        val dialog = android.app.AlertDialog.Builder(this).setTitle(R.string.iptv_xtream)
+            .setView(layout).setNegativeButton(R.string.action_cancel, null)
+            .setPositiveButton(R.string.action_save, null).create()
+        dialog.setOnShowListener {
+            dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                runCatching { Iptv.setXtream(this, server.text.toString(), username.text.toString(), password.text.toString()) }
+                    .onSuccess { dialog.dismiss(); showGroup(Group.STREAMS) }
+                    .onFailure { error.text = it.message ?: getString(R.string.iptv_load_failed) }
+            }
+        }
+        dialog.show()
+    }
 
     private fun choiceRow(c: Choice) {
         fun current() = c.values.indexOfFirst { it.first == stored(c) }.coerceAtLeast(0)
