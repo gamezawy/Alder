@@ -103,11 +103,7 @@
     <string name="filter_all">الكل</string>
     <string name="key_back">رجوع</string>
     <string name="player_source_failed">تعذر تشغيل المصدر</string>
-    <string name="search_no_matches">لا توجد نتائج. جرّب عنوانًا أقصر.</string>
-    <string name="search_unavailable">البحث غير متاح حاليًا.</string>
-    <string name="action_resume">متابعة المشاهدة</string>
     <string name="menu_switch_profile">تبديل الملف الشخصي</string>
-    <string name="menu_settings">الإعدادات</string>
     <string name="player_keeps_buffering">يتوقف التحميل مؤقتًا بشكل متكرر</string>
     <string name="player_source_failed_next">تعذر تشغيل هذا المصدر، جارٍ تجربة المصدر التالي</string>
     <string name="player_source_failed_choose">تعذر تشغيل هذا المصدر، اختر مصدرًا آخر</string>
@@ -123,5 +119,4 @@
     <string name="list_empty">ستظهر هنا الأعمال التي تحفظها</string>
     <string name="search_recent">عمليات البحث الأخيرة</string>
     <string name="search_popular">الأكثر شيوعًا</string>
-    <string name="tab_my_list">قائمتي</string>
 </resources>
