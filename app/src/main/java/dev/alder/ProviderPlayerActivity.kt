@@ -49,6 +49,9 @@ class ProviderPlayerActivity : Screen() {
     private var jellyfinItemId: String? = null
     private var seriesId: String? = null
     private var jellyfinPlaySessionId: String? = null
+    private var playbackStartPending = false
+    private var playbackStarted = false
+    private var pendingStopTicks: Long? = null
     private var stoppedReported = false
     private var controlsVisible = true
     private var scrubbing = false
@@ -65,6 +68,7 @@ class ProviderPlayerActivity : Screen() {
     private val progressReporter = object : Runnable {
         override fun run() {
             val id = jellyfinItemId ?: return
+            if (!playbackStarted) return
             val exo = player ?: return
             // Read ExoPlayer state on its application thread before dispatching network I/O.
             val ticks = exo.currentPosition.coerceAtLeast(0L) * 10_000L
@@ -165,14 +169,34 @@ class ProviderPlayerActivity : Screen() {
                     return@background
                 }
                 jellyfinPlaySessionId = playback.playSessionId
+                playbackStartPending = true
+                val mediaSourceId = playback.mediaSourceId
+                val playSessionId = playback.playSessionId
+                val directPlay = playback.directPlay
+                val positionTicks = startAtMs * 10_000L
                 Screen.pool.execute {
-                    runCatching {
-                        Jellyfin.reportStarted(applicationContext, itemId, playback.mediaSourceId,
-                            playback.playSessionId, playback.directPlay, startAtMs * 10_000L)
+                    val started = runCatching {
+                        Jellyfin.reportStarted(applicationContext, itemId, mediaSourceId,
+                            playSessionId, directPlay, positionTicks)
+                    }
+                    main.post {
+                        playbackStartPending = false
+                        if (started.isSuccess) {
+                            playbackStarted = true
+                            val stopTicks = pendingStopTicks
+                            if (stopTicks != null) {
+                                pendingStopTicks = null
+                                reportStoppedNow(itemId, stopTicks, playSessionId)
+                            } else if (!isFinishing && !isDestroyed) {
+                                progressHandler.postDelayed(progressReporter, 15_000L)
+                            }
+                        } else {
+                            // Playback itself remains usable if the server's session-report endpoint is unavailable.
+                            pendingStopTicks = null
+                        }
                     }
                 }
                 prepare(playback.streamUrl, playback.subtitles)
-                progressHandler.postDelayed(progressReporter, 15_000L)
             }
         } else prepare(url)
         progressHandler.post(progressTask)
@@ -421,12 +445,15 @@ class ProviderPlayerActivity : Screen() {
 
     private fun rememberSelectedTracks(tracks: Tracks) {
         val key = seriesId ?: jellyfinItemId ?: return
-        val audio = tracks.groups.firstOrNull { it.type == C.TRACK_TYPE_AUDIO && it.isSelected }
-            ?.getTrackFormat(0)?.language?.takeIf { it != "und" }
-        val text = tracks.groups.firstOrNull { it.type == C.TRACK_TYPE_TEXT && it.isSelected }
-            ?.getTrackFormat(0)?.language?.takeIf { it != "und" }
-        if (audio != null) Settings.pickedInPlayer(this, key, audio = audio)
-        if (text != null) Settings.pickedInPlayer(this, key, subtitles = text)
+        fun selectedLanguage(type: Int): String? = tracks.groups.asSequence()
+            .filter { it.type == type }
+            .flatMap { group ->
+                (0 until group.length).asSequence().filter { group.isTrackSelected(it) }
+                    .map { group.getTrackFormat(it).language }
+            }
+            .firstOrNull { !it.isNullOrBlank() && it != "und" }
+        selectedLanguage(C.TRACK_TYPE_AUDIO)?.let { Settings.pickedInPlayer(this, key, audio = it) }
+        selectedLanguage(C.TRACK_TYPE_TEXT)?.let { Settings.pickedInPlayer(this, key, subtitles = it) }
     }
 
     private fun updateTrackButton() {
@@ -531,6 +558,12 @@ class ProviderPlayerActivity : Screen() {
         return super.dispatchKeyEvent(event)
     }
 
+    private fun reportStoppedNow(itemId: String, ticks: Long, sessionId: String?) {
+        Screen.pool.execute {
+            runCatching { Jellyfin.reportStopped(applicationContext, itemId, ticks, sessionId) }
+        }
+    }
+
     override fun onStop() {
         progressHandler.removeCallbacksAndMessages(null)
         val id = jellyfinItemId
@@ -539,8 +572,10 @@ class ProviderPlayerActivity : Screen() {
             stoppedReported = true
             Jellyfin.invalidatePlaybackCache(applicationContext)
             val ticks = exo.currentPosition.coerceAtLeast(0L) * 10_000L
-            Screen.pool.execute {
-                runCatching { Jellyfin.reportStopped(applicationContext, id, ticks, jellyfinPlaySessionId) }
+            when {
+                playbackStarted -> reportStoppedNow(id, ticks, jellyfinPlaySessionId)
+                playbackStartPending -> pendingStopTicks = ticks
+                // If PlaybackInfo or Playing never succeeded, don't send a Stopped event without a session.
             }
         }
         playerView.player = null
