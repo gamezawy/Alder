@@ -145,7 +145,7 @@ class MainActivity : Screen() {
     private enum class Page(val label: String, val words: Int) {
         JELLYFIN_HOME("JellyfinHome", R.string.tab_home), JELLYFIN_LIBRARY("JellyfinLibrary", R.string.provider_library),
         HOME("Home", R.string.tab_home), SHOWS("Shows", R.string.tab_shows), MOVIES("Movies", R.string.tab_movies),
-        LIVE("Live", R.string.provider_live_tv), LIBRARY("My List", R.string.tab_my_list)
+        LIVE("Live", R.string.tab_live), LIBRARY("My List", R.string.tab_my_list)
     }
     private enum class Mode { CINEMA, BROWSE }
     private enum class ListFilter { ALL, MOVIES, SHOWS }
@@ -1130,7 +1130,7 @@ class MainActivity : Screen() {
             val focused = item.isFocused
             item.background = if (focused) glass(NAV_R, true) else null
             item.setTextColor(if (p == page || focused) TEXT else TEXT_2)
-            item.text = getString(p.words)
+            item.text = getString(if (p == Page.LIVE) R.string.provider_live_tv else p.words)
             // The open page's dot hangs under its name; the others keep an empty one, so every name sits on one line.
             val tint = if (focused || p == page) TEXT else TEXT_2
             val icon = if (p == Page.LIVE) getDrawable(R.drawable.ic_tv)?.mutate()?.apply { setTint(tint) } else null
