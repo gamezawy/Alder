@@ -514,18 +514,11 @@
     <string name="profiles_all_set">Alles bereit</string>
     <string name="profiles_ready">Das Profil von %1$s ist bereit. Weitere Add-ons kannst du später in den Einstellungen hinzufügen.</string>
     <string name="action_save">Speichern</string>
-    <string name="provider_connecting">Verbindung mit Jellyfin wird hergestellt…</string>
     <string name="provider_library">Mediathek</string>
-    <string name="provider_stremio">Stremio</string>
     <string name="provider_live_tv">Live-TV</string>
     <string name="provider_search">Suchen</string>
-    <string name="provider_jellyfin_not_connected">Jellyfin ist nicht verbunden. Verbinde einen Server in den Einstellungen.</string>
     <string name="provider_jellyfin_offline">Der Jellyfin-Server ist nicht erreichbar. Die Startseite bleibt hier; Stremio oder Live-TV sind weiterhin verfügbar.</string>
-    <string name="provider_jellyfin_connected">Mit Jellyfin verbunden · %1$s</string>
-    <string name="provider_no_libraries">Keine Jellyfin-Mediatheken gefunden.</string>
-    <string name="provider_no_items">Noch nichts vorhanden.</string>
     <string name="provider_retry">Erneut versuchen</string>
-    <string name="provider_offline_navigation">Du kannst Stremio oder Live-TV weiterhin über die Navigation oben öffnen.</string>
     <string name="provider_recently_added">Kürzlich hinzugefügt · %1$s</string>
     <string name="provider_episodes">Folgen</string>
     <string name="provider_loading_episodes">Folgen werden geladen…</string>
@@ -533,8 +526,6 @@
     <string name="provider_episodes_unavailable">Folgen konnten nicht geladen werden. Versuche es später erneut.</string>
     <string name="provider_season_number">Staffel %1$d</string>
     <string name="provider_specials">Sonderfolgen</string>
-    <string name="provider_continue_watching">Weiterschauen</string>
-    <string name="provider_loading_library">Jellyfin-Mediathek wird geladen…</string>
     <string name="iptv_loading">IPTV-Playlist wird geladen…</string>
     <string name="iptv_playlist_settings">Playlist-Einstellungen</string>
     <string name="iptv_channel_count">%1$d Sender</string>
@@ -543,7 +534,6 @@
     <string name="iptv_playlist_url_hint">URL der M3U- oder M3U8-Playlist</string>
     <string name="searching_providers">Jellyfin und Stremio werden durchsucht…</string>
     <string name="search_provider_results">%1$d Ergebnisse über deine Anbieter</string>
-    <string name="provider_jellyfin_home">Jellyfin</string>
     <string name="source_priority">Bevorzugter Anbieter</string>
     <string name="source_priority_hint">Wenn ein Titel bei beiden Anbietern vorhanden ist, wird dieser zuerst verwendet.</string>
     <string name="jellyfin_first">Jellyfin zuerst</string>
