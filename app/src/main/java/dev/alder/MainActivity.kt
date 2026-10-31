@@ -153,6 +153,7 @@ class MainActivity : Screen() {
 
     private lateinit var profile: Profile
     private var jellyfinWasConnected = false
+    private var iptvConfigurationKey = ""
     override val backdrop get() = art
     private lateinit var scroller: ScrollView
     private lateinit var content: LinearLayout
@@ -459,6 +460,7 @@ class MainActivity : Screen() {
                 else -> Page.HOME
             }
         jellyfinWasConnected = Jellyfin.account(this) != null
+        iptvConfigurationKey = Iptv.configurationKey(this)
         showPage(initialPage)
         main.postDelayed(::warmPages, WARM_AFTER)
     }
@@ -583,6 +585,12 @@ class MainActivity : Screen() {
         val connected = Jellyfin.account(this) != null
         if (::content.isInitialized && connected != jellyfinWasConnected) showPage(page)
         jellyfinWasConnected = connected
+        val currentIptvConfiguration = Iptv.configurationKey(this)
+        if (::content.isInitialized && currentIptvConfiguration != iptvConfigurationKey) {
+            iptvConfigurationKey = currentIptvConfiguration
+            applyNavVisibility()
+            if (page == Page.LIVE) showPage(page)
+        }
         // ponytail: idle dim and the cinema screensaver are off (2026-10-26, not wanted yet); post `idle` here to bring the cinema back.
         updateDot?.visibility = if (Updates.hasUpdate(this)) View.VISIBLE else View.GONE
         if (Updates.due(this)) background({ Updates.latest(applicationContext) }) { r ->

@@ -13,7 +13,7 @@ internal object JellyfinAuth {
         return when {
             major == null -> listOf(true, false)
             major >= 12 -> listOf(true)
-            else -> listOf(false)
+            else -> listOf(false, true)
         }
     }
 

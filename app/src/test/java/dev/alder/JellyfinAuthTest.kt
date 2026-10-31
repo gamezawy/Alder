@@ -22,8 +22,8 @@ class JellyfinAuthTest {
     }
 
     @Test fun knownServerVersionsUseOnlyTheirSupportedScheme() {
-        assertEquals(listOf(false), JellyfinAuth.loginModes("10.10.7"))
-        assertEquals(listOf(false), JellyfinAuth.loginModes("11.0.0"))
+        assertEquals(listOf(false, true), JellyfinAuth.loginModes("10.10.7"))
+        assertEquals(listOf(false, true), JellyfinAuth.loginModes("11.0.0"))
         assertEquals(listOf(true), JellyfinAuth.loginModes("12.0.0"))
     }
 

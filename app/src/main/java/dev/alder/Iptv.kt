@@ -52,7 +52,9 @@ object Iptv {
         val type = p.getString(key(context, "playlistType"), "m3u").orEmpty()
         val material = when (type) {
             "xtream" -> listOf(xtreamServer(context), p.getString(key(context, "xtreamUsername"), "").orEmpty(),
-                SecureStorage.decrypt(p.getString(key(context, "xtreamPassword"), "").orEmpty()).orEmpty()).joinToString("|")
+                p.getString(key(context, "xtreamPassword"), "").orEmpty().let { stored ->
+                    SecureStorage.decrypt(stored) ?: stored
+                }).joinToString("|")
             "m3u_file" -> p.getString(key(context, "playlistFileUri"), "").orEmpty()
             else -> playlistUrl(context)
         }
@@ -60,6 +62,8 @@ object Iptv {
             .joinToString("") { "%02x".format(it) }
         return (Profiles.active(context)?.id ?: "none") + "|" + type + "|" + digest
     }
+
+    fun configurationKey(context: Context): String = cacheKey(context)
 
     fun invalidateCache(context: Context) {
         val profileId = Profiles.active(context)?.id ?: "none"
