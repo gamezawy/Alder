@@ -928,22 +928,22 @@ class MainActivity : Screen() {
     private fun loadJellyfinShelves(p: Page): List<JellyfinShelf> {
         if (Jellyfin.account(applicationContext) == null) return emptyList()
         if (p == Page.LIBRARY) {
-            val favorites = runCatching { Jellyfin.favorites(applicationContext) }.getOrDefault(emptyList())
+            // Let refresh failures propagate: appendJellyfinRows keeps the last good snapshot on screen.
+            val favorites = Jellyfin.favorites(applicationContext)
             return favorites.takeIf { it.isNotEmpty() }?.let {
                 listOf(JellyfinShelf(getString(R.string.watch_status_favorite) + " · Jellyfin", it))
             }.orEmpty()
         }
-        val views = runCatching { Jellyfin.views(applicationContext) }.getOrDefault(emptyList())
+        val views = Jellyfin.views(applicationContext)
         return when (p) {
             Page.HOME -> buildList {
-                val resume = runCatching { Jellyfin.resumeItems(applicationContext) }.getOrDefault(emptyList())
+                val resume = Jellyfin.resumeItems(applicationContext)
                     .filter { it.type.equals("Movie", true) || it.type.equals("Series", true) || it.type.equals("Episode", true) }
                 if (resume.isNotEmpty()) add(JellyfinShelf(
                     "", resume, continueWatching = true
                 ))
                 views.forEach { view ->
-                    val latest = runCatching { Jellyfin.latestItems(applicationContext, view.id, 18) }
-                        .getOrDefault(emptyList())
+                    val latest = Jellyfin.latestItems(applicationContext, view.id, 18)
                         .filter {
                             it.type.equals("Movie", true) || it.type.equals("Series", true) || it.type.equals("Episode", true)
                         }
@@ -956,9 +956,7 @@ class MainActivity : Screen() {
             Page.SHOWS, Page.MOVIES -> {
                 val types = if (p == Page.SHOWS) listOf("Series") else listOf("Movie")
                 views.mapNotNull { view ->
-                    val items = runCatching {
-                        Jellyfin.items(applicationContext, view.id, includeTypes = types, limit = START)
-                    }.getOrDefault(emptyList())
+                    val items = Jellyfin.items(applicationContext, view.id, includeTypes = types, limit = START)
                     items.takeIf { it.isNotEmpty() }?.let {
                         JellyfinShelf(view.name, it, parentId = view.id, includeTypes = types, pageable = true)
                     }

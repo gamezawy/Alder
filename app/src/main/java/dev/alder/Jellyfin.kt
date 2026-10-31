@@ -49,6 +49,10 @@ object Jellyfin {
     private data class CachedResponse(val body: String, val expiresAt: Long)
     private val responseCache = ConcurrentHashMap<String, CachedResponse>()
     private val refreshingKeys = ConcurrentHashMap.newKeySet<String>()
+    private val cacheEpochs = ConcurrentHashMap<String, java.util.concurrent.atomic.AtomicLong>()
+
+    private fun cacheEpoch(profileId: String) =
+        cacheEpochs.computeIfAbsent(profileId) { java.util.concurrent.atomic.AtomicLong() }
 
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
     private fun key(context: Context, name: String) = name + "@" + (Profiles.active(context)?.id ?: "none")
@@ -86,6 +90,8 @@ object Jellyfin {
     }
 
     fun forgetProfile(context: Context, profileId: String) {
+        cacheEpoch(profileId).incrementAndGet()
+        cacheEpochs.remove(profileId)
         responseCache.keys.removeIf { it.startsWith(profileId + "|") }
         prefs(context).edit().remove("server@$profileId").remove("token@$profileId")
             .remove("userId@$profileId").remove("username@$profileId").remove("modernAuthorization@$profileId").apply()
@@ -177,6 +183,11 @@ object Jellyfin {
 
     fun request(context: Context, path: String, query: Map<String, String> = emptyMap()): String {
         val account = account(context) ?: throw JellyfinException("Jellyfin is not connected.")
+        return request(account, path, query)
+    }
+
+    /** Uses the account snapshot captured by the caller; a profile switch cannot redirect an in-flight request. */
+    private fun request(account: JellyfinAccount, path: String, query: Map<String, String> = emptyMap()): String {
         require(path.startsWith("/") && !path.startsWith("//")) { "Invalid Jellyfin API path." }
         val suffix = if (query.isEmpty()) "" else query.entries.joinToString("&", prefix = "?") {
             encode(it.key) + "=" + encode(it.value)
@@ -196,14 +207,23 @@ object Jellyfin {
         val queryKey = query.toSortedMap().entries.joinToString("&") { encode(it.key) + "=" + encode(it.value) }
         val key = profileId + "|" + account.serverUrl + "|" + account.userId + "|" + path + "|" + queryKey
         val now = android.os.SystemClock.elapsedRealtime()
+        val epoch = cacheEpoch(profileId)
+        val version = epoch.get()
+        fun stillCurrent() = cacheEpochs[profileId] === epoch && epoch.get() == version &&
+            Profiles.active(context.applicationContext)?.id == profileId &&
+            Jellyfin.account(context.applicationContext) == account
         val cached = responseCache[key]
         if (cached != null) {
             if (cached.expiresAt > now) return cached.body
             // Stale-while-revalidate: return the last good shelf immediately and refresh quietly.
             if (refreshingKeys.add(key)) Screen.pool.execute {
                 try {
-                    val fresh = request(context.applicationContext, path, query)
-                    responseCache[key] = CachedResponse(fresh, android.os.SystemClock.elapsedRealtime() + ttlMs.coerceAtLeast(1_000))
+                    val fresh = request(account, path, query)
+                    if (stillCurrent()) {
+                        responseCache[key] = CachedResponse(fresh,
+                            android.os.SystemClock.elapsedRealtime() + ttlMs.coerceAtLeast(1_000))
+                        trimResponseCache()
+                    }
                 } catch (_: Throwable) {
                     // Keep the stale copy; a transient server hiccup must not blank the Home screen.
                 } finally {
@@ -212,15 +232,26 @@ object Jellyfin {
             }
             return cached.body
         }
-        val body = request(context, path, query)
-        responseCache[key] = CachedResponse(body, now + ttlMs.coerceAtLeast(1_000))
-        if (responseCache.size > 256) responseCache.entries.removeIf { it.value.expiresAt <= now }
+        val body = request(account, path, query)
+        if (stillCurrent()) {
+            responseCache[key] = CachedResponse(body, android.os.SystemClock.elapsedRealtime() + ttlMs.coerceAtLeast(1_000))
+            trimResponseCache()
+        }
         return body
     }
 
-    /** Invalidate this profile's read cache after a playback session changes its resume state. */
+    private fun trimResponseCache() {
+        val now = android.os.SystemClock.elapsedRealtime()
+        responseCache.entries.removeIf { it.value.expiresAt <= now }
+        val excess = responseCache.size - 256
+        if (excess > 0) responseCache.entries.sortedBy { it.value.expiresAt }.take(excess)
+            .forEach { responseCache.remove(it.key, it.value) }
+    }
+
+    /** Invalidate this profile's read cache after account or library state changes. */
     fun invalidateCache(context: Context) {
         val profileId = Profiles.active(context)?.id ?: "none"
+        cacheEpoch(profileId).incrementAndGet()
         responseCache.keys.removeIf { it.startsWith(profileId + "|") }
     }
 
@@ -228,6 +259,8 @@ object Jellyfin {
     fun invalidatePlaybackCache(context: Context) {
         val account = account(context) ?: return
         val profileId = Profiles.active(context)?.id ?: "none"
+        // Prevent an older in-flight shelf refresh from restoring stale resume data after playback ends.
+        cacheEpoch(profileId).incrementAndGet()
         val prefix = "$profileId|${account.serverUrl}|${account.userId}|"
         val resumePath = "|/Users/${encode(account.userId)}/Items/Resume|"
         val latestPath = "|/Users/${encode(account.userId)}/Items/Latest|"
