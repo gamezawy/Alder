@@ -331,9 +331,30 @@ object Jellyfin {
             "EnableImageTypes" to "Primary",
             "Limit" to limit.coerceIn(1, 1_000).toString()
         )
-        val items = JSONObject(cachedRequest(context, "/Shows/" + encode(seriesId) + "/Episodes", query, 60_000L))
-            .optJSONArray("Items").toItems()
-        return orderJellyfinEpisodes(items)
+        val response = runCatching {
+            cachedRequest(context, "/Shows/" + encode(seriesId) + "/Episodes", query, 60_000L)
+        }.getOrNull()
+        val episodes = response?.let { body ->
+            runCatching { JSONObject(body).optJSONArray("Items").toItems() }.getOrNull()
+        }.orEmpty()
+        if (episodes.isNotEmpty()) return orderJellyfinEpisodes(episodes)
+
+        // Some server versions or library layouts return an empty GetEpisodes result; query the user library recursively.
+        val fallbackQuery = mapOf(
+            "UserId" to account.userId,
+            "ParentId" to seriesId,
+            "Recursive" to "true",
+            "IncludeItemTypes" to "Episode",
+            "Fields" to "Overview,RunTimeTicks,UserData,ProductionYear,ImageTags,IndexNumber,ParentIndexNumber,SeriesName,SeriesId",
+            "EnableUserData" to "true",
+            "EnableImages" to "true",
+            "ImageTypeLimit" to "1",
+            "EnableImageTypes" to "Primary",
+            "Limit" to limit.coerceIn(1, 1_000).toString()
+        )
+        val fallback = JSONObject(cachedRequest(context, "/Users/" + encode(account.userId) + "/Items",
+            fallbackQuery, 60_000L)).optJSONArray("Items").toItems()
+        return orderJellyfinEpisodes(fallback)
     }
 
     fun playback(context: Context, itemId: String): JellyfinPlayback {

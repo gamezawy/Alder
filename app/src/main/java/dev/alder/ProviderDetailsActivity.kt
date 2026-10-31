@@ -27,6 +27,7 @@ class ProviderDetailsActivity : Screen() {
     private var episodesAction: TextView? = null
     private var episodesUnavailable = false
     private var episodesLoaded = false
+    private var playWhenEpisodesReady = false
     private var backdropFailed = false
     private lateinit var guide: FrameLayout
     private lateinit var guideRows: LinearLayout
@@ -175,11 +176,22 @@ class ProviderDetailsActivity : Screen() {
                 episodesLoaded = true
                 episodesUnavailable = false
                 buildGuide(episodes)
+                if (playWhenEpisodesReady) {
+                    playWhenEpisodesReady = false
+                    if (episodes.isNotEmpty()) playSelected(series)
+                    else android.widget.Toast.makeText(this@ProviderDetailsActivity,
+                        getString(R.string.provider_no_episodes), android.widget.Toast.LENGTH_LONG).show()
+                }
             }.onFailure {
                 loadedEpisodes = emptyList()
                 episodesLoaded = true
                 episodesUnavailable = true
                 buildGuide(emptyList())
+                if (playWhenEpisodesReady) {
+                    playWhenEpisodesReady = false
+                    android.widget.Toast.makeText(this@ProviderDetailsActivity,
+                        getString(R.string.provider_episodes_unavailable), android.widget.Toast.LENGTH_LONG).show()
+                }
             }
         }
     }
@@ -266,6 +278,8 @@ class ProviderDetailsActivity : Screen() {
             return
         }
         if (!episodesLoaded) {
+            // A Play press during the initial episode request should be honored when the list arrives.
+            playWhenEpisodesReady = true
             android.widget.Toast.makeText(this, getString(R.string.provider_loading_episodes),
                 android.widget.Toast.LENGTH_SHORT).show()
             return
