@@ -16,9 +16,15 @@ class JellyfinAuthTest {
         assertFalse(JellyfinAuth.usesModernAuthorization("11.0.0"))
     }
 
-    @Test fun unknownVersionUsesSupportedModernScheme() {
-        assertTrue(JellyfinAuth.usesModernAuthorization(null))
-        assertTrue(JellyfinAuth.usesModernAuthorization("unknown"))
+    @Test fun unknownVersionTriesModernThenLegacy() {
+        assertEquals(listOf(true, false), JellyfinAuth.loginModes(null))
+        assertEquals(listOf(true, false), JellyfinAuth.loginModes("unknown"))
+    }
+
+    @Test fun knownServerVersionsUseOnlyTheirSupportedScheme() {
+        assertEquals(listOf(false), JellyfinAuth.loginModes("10.10.7"))
+        assertEquals(listOf(false), JellyfinAuth.loginModes("11.0.0"))
+        assertEquals(listOf(true), JellyfinAuth.loginModes("12.0.0"))
     }
 
     @Test fun modernAndLegacyHeadersRemainSeparate() {
@@ -27,6 +33,15 @@ class JellyfinAuthTest {
         assertTrue(JellyfinAuth.loginHeaders("test", false).containsKey("X-Emby-Authorization"))
         assertEquals("MediaBrowser Token=\"secret\"", JellyfinAuth.tokenHeaders("secret", true)["Authorization"])
         assertEquals("secret", JellyfinAuth.tokenHeaders("secret", false)["X-Emby-Token"])
+    }
+
+    @Test fun normalizesReverseProxyBasePathsAndBrowserUrls() {
+        assertEquals("https://media.example/jellyfin",
+            Jellyfin.normalizeServerUrl("https://media.example/jellyfin/web/index.html#!/home"))
+        assertEquals("https://media.example",
+            Jellyfin.normalizeServerUrl("https://media.example/web/#/home"))
+        assertEquals("https://media.example/jellyfin",
+            Jellyfin.normalizeServerUrl("https://media.example/jellyfin"))
     }
 
     private fun episode(id: String, season: Int?, number: Int?, played: Boolean = false, position: Long = 0L) =

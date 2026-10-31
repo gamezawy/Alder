@@ -145,7 +145,7 @@ class MainActivity : Screen() {
     private enum class Page(val label: String, val words: Int) {
         JELLYFIN_HOME("JellyfinHome", R.string.tab_home), JELLYFIN_LIBRARY("JellyfinLibrary", R.string.provider_library),
         HOME("Home", R.string.tab_home), SHOWS("Shows", R.string.tab_shows), MOVIES("Movies", R.string.tab_movies),
-        LIVE("Live", R.string.tab_live), LIBRARY("My List", R.string.tab_my_list)
+        LIVE("Live", R.string.provider_live_tv), LIBRARY("My List", R.string.tab_my_list)
     }
     private enum class Mode { CINEMA, BROWSE }
     private enum class ListFilter { ALL, MOVIES, SHOWS }
@@ -185,7 +185,6 @@ class MainActivity : Screen() {
     private lateinit var listHint: TextView
     private lateinit var heroAdded: TextView
     private var search: ImageView? = null
-    private var liveTv: ImageView? = null
     private val rows = mutableListOf<Row>()
     private data class JellyfinShelf(
         val title: String, val items: List<JellyfinItem>, val parentId: String? = null,
@@ -315,6 +314,10 @@ class MainActivity : Screen() {
         val finished: Boolean = false,
         var newEpisode: Boolean = false,
         val providerItem: JellyfinItem? = null,
+        val liveUrl: String? = null,
+        val liveUserAgent: String? = null,
+        val liveReferrer: String? = null,
+        val iptvChannel: IptvChannel? = null,
     ) {
         val live get() = isLiveType(type) // a channel or event: plays from its card, no title page
         var filled = false
@@ -772,13 +775,6 @@ class MainActivity : Screen() {
             setOnFocusChangeListener { _, _ -> styleNav() }
             setOnClickListener { startActivity(Intent(this@MainActivity, SearchActivity::class.java)) }
         }.inNav(width = dp(44), height = -1)
-        liveTv = ImageView(this).apply {
-            setImageResource(R.drawable.ic_tv)
-            contentDescription = getString(R.string.provider_live_tv)
-            setPadding(dp(12), dp(7), dp(12), dp(7))
-            setOnFocusChangeListener { _, _ -> styleNav() }
-            setOnClickListener { startActivity(Intent(this@MainActivity, IptvActivity::class.java)) }
-        }.inNav(width = dp(44), height = -1)
         // One destination bar for both sources. Jellyfin is the default Home/Library; Stremio remains
         // a clearly named section inside Alder rather than opening a second-looking home screen.
         // One navigation shell, matching Alder's original main-branch layout. Both providers contribute rows to it.
@@ -786,8 +782,9 @@ class MainActivity : Screen() {
         navOrder.forEach { p ->
             navItems[p] = text(p.words, BODY).apply {
                 gravity = Gravity.CENTER
-                compoundDrawablePadding = dp(2)
-                setPadding(dp(12), dp(4), dp(12), dp(2))
+                compoundDrawablePadding = dp(if (p == Page.LIVE) 6 else 2)
+                setPadding(dp(if (p == Page.LIVE) 10 else 12), dp(4), dp(12), dp(2))
+                if (p == Page.LIVE) contentDescription = getString(R.string.provider_live_tv)
                 setOnFocusChangeListener { _, has ->
                     styleNav()
                     main.removeCallbacks(switchPage)
@@ -802,7 +799,6 @@ class MainActivity : Screen() {
                         else -> firstRow()?.focusFirst()
                     }
                 }
-                if (p == Page.LIVE) visibility = View.GONE
                 if (p == Page.MOVIES && !Settings.showMovies(this@MainActivity)) visibility = View.GONE
                 if (p == Page.SHOWS && !Settings.showShows(this@MainActivity)) visibility = View.GONE
             }.inNav()
@@ -1000,18 +996,101 @@ class MainActivity : Screen() {
 
 
 
+    /** Playlist channels use the same Alder cards, focus behavior and scrolling as movie/show catalogs. */
+    private fun appendIptvRows(p: Page, token: Int, opened: Long) {
+        if (p != Page.LIVE || !Iptv.isConfigured(this)) return
+        val target = slot()
+        var shown: String? = null
+
+        fun display(playlist: IptvPlaylist) {
+            if (token != generation || page != p || isFinishing || isDestroyed) return
+            val signature = playlist.channels.joinToString("|") {
+                "${Iptv.stableId(it)}:${it.logoUrl.orEmpty()}:${it.group}"
+            }
+            if (signature == shown) return
+            val focusedTag = currentFocus?.takeIf { isInside(it, target) }?.tag
+            shown = signature
+            rows.filter { isInside(it.view, target) }.forEach { old ->
+                old.cards.forEach { it.unload() }
+                rows.remove(old)
+            }
+            target.removeAllViews()
+
+            fun channelItems(channels: List<IptvChannel>) = channels.map { channel ->
+                Item(
+                    id = "iptv:${Iptv.stableId(channel)}", type = "tv", name = channel.name,
+                    poster = channel.logoUrl, art = null, logo = channel.logoUrl, about = "",
+                    facts = listOf(channel.group), videoId = null, progress = 0f,
+                    resume = false, left = null, liveUrl = channel.streamUrl,
+                    liveUserAgent = channel.userAgent, liveReferrer = channel.referrer, iptvChannel = channel
+                ).also { it.filled = true; it.settled = true }
+            }
+
+            val favorites = playlist.channels.filter {
+                WatchStatuses.get(this, "iptv", it.streamUrl) == WatchStatus.FAVORITE
+            }
+            if (favorites.isNotEmpty()) {
+                val items = channelItems(favorites)
+                target.addView(row(getString(R.string.iptv_favorites), items.take(START), later(items)).view)
+            }
+            if (playlist.channels.isNotEmpty()) {
+                val all = channelItems(playlist.channels)
+                target.addView(row(getString(R.string.provider_live_tv), all.take(START), later(all)).view)
+            }
+            playlist.groups().forEach { group ->
+                val items = channelItems(playlist.inGroup(group))
+                if (items.isNotEmpty()) target.addView(row(group, items.take(START), later(items)).view)
+            }
+            if (playlist.channels.isEmpty()) {
+                target.addView(text(getString(R.string.iptv_no_channels), BODY, color = TEXT_2)
+                    .apply { setPadding(dp(PAD), 0, dp(PAD), 0) })
+            }
+            if (focusedTag != null) (target.findViewWithTag<View>(focusedTag)
+                ?: rows.firstOrNull { isInside(it.view, target) }?.cards?.firstOrNull())?.requestFocus()
+            main.post(::updateImages)
+            android.util.Log.d("Alder", "IPTV channels on Live TV: ${playlist.channels.size} in ${android.os.SystemClock.uptimeMillis() - opened} ms")
+        }
+
+        background({ Iptv.load(applicationContext) }) { result ->
+            if (token != generation || page != p || isFinishing || isDestroyed) return@background
+            result.onSuccess(::display).onFailure {
+                target.addView(text(getString(R.string.iptv_load_failed), BODY, color = TEXT_2)
+                    .apply { setPadding(dp(PAD), 0, dp(PAD), 0) })
+            }
+        }
+    }
+
+    private fun setIptvWatchStatus(channel: IptvChannel) {
+        val statuses = WatchStatus.entries
+        val labels = statuses.map { status ->
+            getString(when (status) {
+                WatchStatus.NONE -> R.string.watch_status_none
+                WatchStatus.FAVORITE -> R.string.watch_status_favorite
+                WatchStatus.WATCHING -> R.string.watch_status_watching
+                WatchStatus.ON_HOLD -> R.string.watch_status_on_hold
+                WatchStatus.DROPPED -> R.string.watch_status_dropped
+                WatchStatus.WATCHED -> R.string.watch_status_watched
+            })
+        }
+        choose(getString(R.string.watch_status_title), labels, channel.name,
+            checked = WatchStatuses.get(this, "iptv", channel.streamUrl).ordinal) { index ->
+            WatchStatuses.set(this, "iptv", channel.streamUrl, statuses[index])
+            showPage(Page.LIVE)
+        }
+    }
+
     /** Live in the top bar only for a profile whose add-ons list channels, sport or events, and if allowed in Settings. */
     private fun showLiveTab(addons: List<Addon>) {
         lastAddons = addons
         val live = addons.any { a -> a.catalogs.any { shelf(it)?.page == Page.LIVE } }
-        navItems[Page.LIVE]?.visibility = if ((live && Settings.showLive(this)) || page == Page.LIVE) View.VISIBLE else View.GONE
+        navItems[Page.LIVE]?.visibility = if (((live || Iptv.isConfigured(this)) && Settings.showLive(this)) || page == Page.LIVE) View.VISIBLE else View.GONE
     }
 
     private fun applyNavVisibility() {
         navItems[Page.MOVIES]?.visibility = if (Settings.showMovies(this) || page == Page.MOVIES) View.VISIBLE else View.GONE
         navItems[Page.SHOWS]?.visibility = if (Settings.showShows(this) || page == Page.SHOWS) View.VISIBLE else View.GONE
         val live = lastAddons.any { a -> a.catalogs.any { shelf(it)?.page == Page.LIVE } }
-        navItems[Page.LIVE]?.visibility = if ((live && Settings.showLive(this)) || page == Page.LIVE) View.VISIBLE else View.GONE
+        navItems[Page.LIVE]?.visibility = if (((live || Iptv.isConfigured(this)) && Settings.showLive(this)) || page == Page.LIVE) View.VISIBLE else View.GONE
     }
 
     private var pending = Page.HOME
@@ -1045,17 +1124,16 @@ class MainActivity : Screen() {
             item.setTextColor(if (p == page || focused) TEXT else TEXT_2)
             item.text = getString(p.words)
             // The open page's dot hangs under its name; the others keep an empty one, so every name sits on one line.
-            item.setCompoundDrawablesRelative(null, null, null, GradientDrawable().apply {
+            val tint = if (focused || p == page) TEXT else TEXT_2
+            val icon = if (p == Page.LIVE) getDrawable(R.drawable.ic_tv)?.mutate()?.apply { setTint(tint) } else null
+            val dot = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
                 setColor(if (p == page) TUNGSTEN else Color.TRANSPARENT)
                 setBounds(0, 0, dp(4), dp(4))
-            })
+            }
+            item.setCompoundDrawablesRelative(icon, null, null, dot)
         }
         search?.let {
-            it.background = if (it.isFocused) glass(NAV_R, true) else null
-            it.setColorFilter(if (it.isFocused) TEXT else TEXT_2)
-        }
-        liveTv?.let {
             it.background = if (it.isFocused) glass(NAV_R, true) else null
             it.setColorFilter(if (it.isFocused) TEXT else TEXT_2)
         }
@@ -1291,6 +1369,11 @@ class MainActivity : Screen() {
         ).apply {
             alpha = 0f
             setPadding(dp(FOCUS_ROOM), 0, dp(FOCUS_ROOM), 0)
+            // Opaque backing keeps the hero text readable while poster rows scroll behind this area.
+            background = GradientDrawable().apply {
+                setColor(0xF20B0D10.toInt())
+                cornerRadius = dp(14).toFloat()
+            }
             // Too tall for the art above the rows (a large font size, a two-line name): the description gives up lines
             // until the block clears the top bar's words (they end well above its 76 dp). showHero gives them back for
             // the next title.
@@ -1336,8 +1419,8 @@ class MainActivity : Screen() {
         (heroAdded.layoutParams as? android.view.ViewGroup.MarginLayoutParams)?.marginStart = if (lead.isEmpty()) 0 else dp(6)
         heroAdded.visibility = if (page == Page.LIBRARY && heroAdded.text.isNotEmpty()) View.VISIBLE else View.GONE
         heroAbout.maxLines = 2
-        heroAbout.visibility = if (page == Page.LIBRARY) View.GONE else View.VISIBLE
         val description = episode(item)?.overview?.takeIf { it.isNotBlank() } ?: item.about
+        heroAbout.visibility = if (page == Page.LIBRARY || description.isBlank()) View.GONE else View.VISIBLE
         heroAbout.text = description
         heroAbout.post {
             if (heroItem !== item || heroAbout.text.toString() != description) return@post
@@ -1472,6 +1555,7 @@ class MainActivity : Screen() {
         chrome()
         val key = profile.authKey
         appendJellyfinRows(p, g, opened)
+        appendIptvRows(p, g, opened)
 
         // Nothing at all came back (no network, Stremio down): say so once, with a retry, instead of a blank page.
         var failedShown = false
@@ -1551,7 +1635,7 @@ class MainActivity : Screen() {
                 shelf(c)?.takeIf { it.page == p || (featuredHome && (it.page == Page.MOVIES || it.page == Page.SHOWS) && it.rank <= 2) }?.let { c to it }
             }.sortedBy { it.second.rank }
             val catalogs = shelves.map { it.first }
-            if (catalogs.isEmpty()) {
+            if (catalogs.isEmpty() && !(p == Page.LIVE && Iptv.isConfigured(this@MainActivity))) {
                 val none = when (p) {
                     Page.HOME -> R.string.home_no_picks
                     Page.MOVIES -> R.string.page_no_movie_catalogs
@@ -2277,6 +2361,7 @@ class MainActivity : Screen() {
                 // A channel has no title page to show: OK plays it, and holding OK lists its sources.
                 setOnClickListener { if (item.live) play(item) else openDetails(item) }
                 if (item.providerItem != null) setOnLongClickListener { openDetails(item); true }
+                else if (item.iptvChannel != null) setOnLongClickListener { setIptvWatchStatus(item.iptvChannel); true }
                 else if (grid) setOnLongClickListener { listMenu(item); true }
                 else if (item.resume) setOnLongClickListener { continueMenu(item); true }
                 else setOnLongClickListener { rowMenu(this@Row, item); true }
@@ -2446,6 +2531,14 @@ class MainActivity : Screen() {
 
     /** Resume: straight to the sources for the episode Continue Watching points at; with [pick] (held OK) they're all listed. */
     private fun play(item: Item, pick: Boolean = false) {
+        item.liveUrl?.let { url ->
+            startActivity(Intent(this, ProviderPlayerActivity::class.java)
+                .putExtra("streamUrl", url)
+                .putExtra("title", item.name)
+                .putExtra("userAgent", item.liveUserAgent)
+                .putExtra("referrer", item.liveReferrer))
+            return
+        }
         item.providerItem?.let { provider ->
             if (provider.type.equals("Series", true)) { openDetails(item); return }
             val episode = provider.type.equals("Episode", true)

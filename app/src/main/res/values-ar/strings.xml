@@ -285,4 +285,6 @@
     <string name="updates_up_to_date">التطبيق محدث</string>
     <string name="version">الإصدار %1$s</string>
     <string name="whats_new">ما الجديد؟</string>
+    <string name="keyboard_second_language">لغة لوحة المفاتيح الثانية</string>
+    <string name="keyboard_second_language_hint">اختر اللغة المستخدمة في التخطيط الثاني للوحة مفاتيح البحث المدمجة.</string>
 </resources>

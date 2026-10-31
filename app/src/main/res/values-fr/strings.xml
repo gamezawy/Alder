@@ -587,4 +587,6 @@
     <string name="iptv_favorites">Favoris</string>
     <string name="group_sources">Sources</string>
     <string name="hint_sources">Connectez Jellyfin et les fournisseurs de TV en direct, puis choisissez celui à privilégier.</string>
+    <string name="keyboard_second_language">Deuxième langue du clavier</string>
+    <string name="keyboard_second_language_hint">Choisissez la langue utilisée par la deuxième disposition du clavier de recherche intégré.</string>
 </resources>

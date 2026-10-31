@@ -580,4 +580,6 @@
     <string name="iptv_favorites">पसंदीदा</string>
     <string name="group_sources">स्रोत</string>
     <string name="hint_sources">Jellyfin और लाइव टीवी प्रदाताओं को कनेक्ट करें और प्राथमिक प्रदाता चुनें।</string>
+    <string name="keyboard_second_language">दूसरी कीबोर्ड भाषा</string>
+    <string name="keyboard_second_language_hint">बिल्ट-इन खोज कीबोर्ड के दूसरे लेआउट की भाषा चुनें।</string>
 </resources>

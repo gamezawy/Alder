@@ -31,7 +31,7 @@ class IptvActivity : Screen() {
         root.addView(status)
         val actions = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         val configure = action(getString(R.string.iptv_playlist_settings)) { editPlaylist() }
-        val refresh = action(getString(R.string.provider_retry)) { loadPlaylist() }
+        val refresh = action(getString(R.string.provider_retry)) { loadPlaylist(forceRefresh = true) }
         actions.addView(configure)
         actions.addView(refresh)
         root.addView(actions)
@@ -49,10 +49,10 @@ class IptvActivity : Screen() {
         setOnClickListener { click() }
     }
 
-    private fun loadPlaylist() {
+    private fun loadPlaylist(forceRefresh: Boolean = false) {
         status.text = getString(R.string.iptv_loading)
         list.removeAllViews()
-        background({ Iptv.load(applicationContext) }) { result ->
+        background({ Iptv.load(applicationContext, forceRefresh) }) { result ->
             result.onSuccess {
                 playlist = it
                 status.text = getString(R.string.iptv_channel_count, it.channels.size)

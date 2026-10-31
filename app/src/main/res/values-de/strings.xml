@@ -580,4 +580,6 @@
     <string name="iptv_favorites">Favoriten</string>
     <string name="group_sources">Quellen</string>
     <string name="hint_sources">Verbinde Jellyfin und Live-TV-Anbieter und lege fest, welcher Anbieter Vorrang hat.</string>
+    <string name="keyboard_second_language">Zweite Tastatursprache</string>
+    <string name="keyboard_second_language_hint">Wählen Sie die Sprache für das zweite Layout der integrierten Suchtastatur.</string>
 </resources>

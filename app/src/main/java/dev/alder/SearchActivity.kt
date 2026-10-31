@@ -78,7 +78,8 @@ class SearchActivity : Screen() {
     private var jellyfinHits: List<JellyfinItem> = emptyList()
     private var jellyfinSearchDone = true
     private var numeric = false
-    private var keyboardArabic = false
+    private var keyboardSecondLanguage = "ar"
+    private var keyboardSecondActive = false
     private var languageLabel: TextView? = null
     private var request = 0
     private val searchTasks = mutableListOf<Future<*>>()
@@ -88,7 +89,12 @@ class SearchActivity : Screen() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val key = authKey ?: return finish()
-        keyboardArabic = getSharedPreferences("settings", MODE_PRIVATE).getBoolean("searchKeyboardArabic", false)
+        val keyboardPrefs = getSharedPreferences("settings", MODE_PRIVATE)
+        keyboardSecondLanguage = keyboardPrefs.getString("keyboardSecondLanguage", "ar")
+            ?.takeIf { it in SearchKeyboardLayouts.supportedLanguages } ?: "ar"
+        keyboardSecondActive = if (keyboardPrefs.contains("searchKeyboardSecondActive"))
+            keyboardPrefs.getBoolean("searchKeyboardSecondActive", false)
+        else keyboardPrefs.getBoolean("searchKeyboardArabic", false)
         art = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; alpha = 0f }
         artBack = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP }
         val width = resources.displayMetrics.widthPixels / resources.displayMetrics.density
@@ -320,37 +326,43 @@ class SearchActivity : Screen() {
     }
 
     private fun buildKeyboard() {
-        val letterRows = listOf("qwertyuiop", "asdfghjkl", "zxcvbnm")
-        val letters = letterRows.joinToString("")
-        val arabicLetters = listOf("ضصثقفغعهخح", "شسيبلاتنم", "ئءؤرلاى").joinToString("")
-        letterRows.forEach { rowLetters ->
-            val row = keyRow()
+        keyboard.removeAllViews()
+        characterKeys.clear()
+        rightEdgeKeys.clear()
+        firstKey = null
+        lastKey = null
+        val activeLanguage = if (keyboardSecondActive) keyboardSecondLanguage else "en"
+        val rtl = activeLanguage == "ar"
+        val layoutRows = SearchKeyboardLayouts.rows(activeLanguage)
+        layoutRows.forEach { rowLetters ->
+            val row = keyRow(rtl)
+            val keyWidth = ((dp(264) - dp(3) * (rowLetters.size - 1)) / rowLetters.size)
             rowLetters.forEachIndexed { column, letter ->
                 val index = characterKeys.size
-                val key = key(letter.toString(), row, 1, column == rowLetters.lastIndex) {
-                    append(characterKeys[index].text.toString())
-                }
-                characterKeys += key
+                val rightEdge = if (rtl) column == 0 else column == rowLetters.lastIndex
+                val view = key(letter, row, 1, rightEdge, keyWidth) { append(characterKeys[index].text.toString()) }
+                if (rtl) view.textSize = 14f
+                characterKeys += view
             }
         }
-        characterKeys.forEachIndexed { index, view -> if (keyboardArabic) view.text = arabicLetters[index].toString() }
         val controls = keyRow()
         val mode = key("123", controls, 3, false) {
             numeric = !numeric
-            val symbols = "1234567890@#$%&*()!?.,:/+"
+            val symbols = SearchKeyboardLayouts.symbols(characterKeys.size)
             characterKeys.forEachIndexed { index, view ->
-                view.text = if (numeric) symbols.getOrNull(index)?.toString() ?: "·" else (if (keyboardArabic) arabicLetters else letters).getOrNull(index)?.toString() ?: "·"
+                view.text = if (numeric) symbols[index] else layoutRows.flatten()[index]
             }
             modeLabel?.text = if (numeric) "ABC" else "123"
         }
         modeLabel = mode
-        languageLabel = key(if (keyboardArabic) "EN" else "ع", controls, 2, false) {
-            keyboardArabic = !keyboardArabic
-            getSharedPreferences("settings", MODE_PRIVATE).edit().putBoolean("searchKeyboardArabic", keyboardArabic).apply()
-            characterKeys.forEachIndexed { index, view ->
-                if (!numeric) view.text = (if (keyboardArabic) arabicLetters else letters).getOrNull(index)?.toString() ?: "·"
-            }
-            languageLabel?.text = if (keyboardArabic) "EN" else "ع"
+        val switchText = if (keyboardSecondActive) "EN" else SearchKeyboardLayouts.switchLabel(keyboardSecondLanguage)
+        languageLabel = key(switchText, controls, 2, false) {
+            keyboardSecondActive = !keyboardSecondActive
+            numeric = false
+            getSharedPreferences("settings", MODE_PRIVATE).edit()
+                .putBoolean("searchKeyboardSecondActive", keyboardSecondActive).apply()
+            buildKeyboard()
+            keyboard.post { languageLabel?.requestFocus() }
         }
         key("−", controls, 2, false) { append("-") }
         key("⌫", controls, 3, true) { delete() }
@@ -363,18 +375,18 @@ class SearchActivity : Screen() {
             alpha = 0.45f
             contentDescription = getString(R.string.search_voice_unavailable)
             isFocusable = false
-            isClickable = false
-        }, LinearLayout.LayoutParams(dp(49), -1).apply { marginStart = dp(3) })
+        }, LinearLayout.LayoutParams(dp(30), dp(30)))
     }
 
     private var modeLabel: TextView? = null
 
-    private fun keyRow() = LinearLayout(this).apply {
+    private fun keyRow(rtl: Boolean = false) = LinearLayout(this).apply {
         gravity = Gravity.CENTER
+        layoutDirection = if (rtl) View.LAYOUT_DIRECTION_RTL else View.LAYOUT_DIRECTION_LTR
         keyboard.addView(this, LinearLayout.LayoutParams(-1, dp(30)).apply { if (keyboard.childCount > 0) topMargin = dp(4) })
     }
 
-    private fun key(label: String, row: LinearLayout, span: Int, rightEdge: Boolean, click: () -> Unit): TextView {
+    private fun key(label: String, row: LinearLayout, span: Int, rightEdge: Boolean, width: Int? = null, click: () -> Unit): TextView {
         val view = text(label, if (label.length > 1) SMALL else BODY, color = TEXT_2).apply {
             gravity = Gravity.CENTER
             isFocusable = true
@@ -388,7 +400,7 @@ class SearchActivity : Screen() {
             if (previous != null && previous !== view && !previous.hasFocus()) previous.background = null
             click()
         }
-        row.addView(view, LinearLayout.LayoutParams(dp(23 * span + 3 * (span - 1)), -1).apply {
+        row.addView(view, LinearLayout.LayoutParams(width ?: dp(23 * span + 3 * (span - 1)), -1).apply {
             if (row.childCount > 0) marginStart = dp(3)
         })
         if (firstKey == null) firstKey = view

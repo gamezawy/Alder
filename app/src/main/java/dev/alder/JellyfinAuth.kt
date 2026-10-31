@@ -8,11 +8,16 @@ import java.security.MessageDigest
  */
 internal object JellyfinAuth {
     private const val LEGACY_DEVICE_ID = "alder-android-tv"
-    fun usesModernAuthorization(version: String?): Boolean {
+    fun loginModes(version: String?): List<Boolean> {
         val major = Regex("""^\s*(\d+)""").find(version.orEmpty())?.groupValues?.getOrNull(1)?.toIntOrNull()
-        // Unknown version: the standard Authorization scheme is supported by older Jellyfin releases too.
-        return major == null || major >= 12
+        return when {
+            major == null -> listOf(true, false)
+            major >= 12 -> listOf(true)
+            else -> listOf(false)
+        }
     }
+
+    fun usesModernAuthorization(version: String?): Boolean = loginModes(version).first()
 
     fun loginHeaders(username: String, modern: Boolean): Map<String, String> {
         // One token per device ID on Jellyfin. Keep each Alder profile's device ID stable but distinct.

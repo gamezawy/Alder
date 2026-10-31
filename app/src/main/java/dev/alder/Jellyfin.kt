@@ -118,7 +118,11 @@ object Jellyfin {
         }
         require(uri.userInfo == null) { "The server address must not contain credentials." }
         // Users often paste Jellyfin's browser URL (/web/#/home). API requests must target the server root.
-        return java.net.URI(scheme, null, uri.host, uri.port, null, null, null)
+        // Preserve reverse-proxy base paths such as /jellyfin, but strip a pasted web-client path.
+        val basePath = uri.path.orEmpty().trimEnd('/')
+            .replace(Regex("(?i)/web(?:/index\\.html)?$"), "")
+            .takeIf { it.isNotBlank() }
+        return java.net.URI(scheme, null, uri.host, uri.port, basePath, null, null)
             .toASCIIString().trimEnd('/')
     }
 
@@ -169,26 +173,42 @@ object Jellyfin {
         // Jellyfin 12 disables deprecated X-Emby authorization. Detect the server version first;
         // if a proxy hides public info, the standard Authorization scheme remains supported by older servers.
         val serverVersion = runCatching {
-            JSONObject(Http.get("$server/System/Info/Public", timeoutMs = 10_000)).optString("Version")
+            JSONObject(Http.get("$server/System/Info/Public", timeoutMs = 10_000, strict = true))
+                .optString("Version").takeIf { it.isNotBlank() }
         }.getOrNull()
-        val useModernAuthorization = JellyfinAuth.usesModernAuthorization(serverVersion)
         val body = JSONObject().put("Username", username).put("Pw", password).toString()
-        val answer = try {
-            Http.post("$server/Users/AuthenticateByName", body, timeoutMs = 20_000,
-                headers = JellyfinAuth.loginHeaders(username, useModernAuthorization) +
-                    ("Accept" to "application/json"), strict = true)
-        } catch (e: HttpError) {
-            val detail = runCatching { JSONObject(e.responseBody.orEmpty()).optString("Message") }.getOrNull()
-                .orEmpty().ifBlank { e.responseBody.orEmpty().take(300) }
-            throw JellyfinException("Jellyfin sign-in failed (HTTP ${e.code})" +
-                if (detail.isBlank()) "." else ": $detail", e.code)
+        val modes = JellyfinAuth.loginModes(serverVersion)
+        var answer: String? = null
+        var selectedMode = modes.first()
+        var lastError: HttpError? = null
+        for (mode in modes) {
+            try {
+                answer = Http.post("$server/Users/AuthenticateByName", body, timeoutMs = 20_000,
+                    headers = JellyfinAuth.loginHeaders(username, mode) + ("Accept" to "application/json"),
+                    strict = true)
+                selectedMode = mode
+                break
+            } catch (e: HttpError) {
+                lastError = e
+                if (e.code !in setOf(401, 403) || mode == modes.last()) {
+                    val detail = runCatching { JSONObject(e.responseBody.orEmpty()).optString("Message") }.getOrNull()
+                        .orEmpty().ifBlank { e.responseBody.orEmpty().take(300) }
+                    throw JellyfinException("Jellyfin sign-in failed (HTTP ${e.code})" +
+                        if (detail.isBlank()) "." else ": $detail", e.code)
+                }
+            }
+        }
+        if (answer == null) {
+            val e = lastError
+            throw JellyfinException("Jellyfin sign-in failed" + (e?.let { " (HTTP ${it.code})" } ?: "."),
+                e?.code)
         }
         val json = runCatching { JSONObject(answer) }.getOrElse { throw JellyfinException("The server returned an invalid sign-in response.") }
         val token = json.optString("AccessToken")
         val user = json.optJSONObject("User")
         val userId = user?.optString("Id").orEmpty()
         if (token.isBlank() || userId.isBlank()) throw JellyfinException("Jellyfin did not return an access token and user ID.")
-        return JellyfinAccount(server, token, userId, user?.optString("Name").orEmpty().ifBlank { username }, useModernAuthorization)
+        return JellyfinAccount(server, token, userId, user?.optString("Name").orEmpty().ifBlank { username }, selectedMode)
     }
 
     fun request(context: Context, path: String, query: Map<String, String> = emptyMap()): String {

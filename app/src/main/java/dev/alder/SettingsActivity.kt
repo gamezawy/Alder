@@ -584,6 +584,15 @@ class SettingsActivity : Screen() {
                 appLanguageRow()
                 choiceRow(Choice("keyboardMode", getString(R.string.keyboard_mode), getString(R.string.keyboard_mode_hint),
                     listOf("builtin" to getString(R.string.keyboard_builtin), "system" to getString(R.string.keyboard_system))))
+                @Suppress("DEPRECATION")
+                val displayLocale = if (android.os.Build.VERSION.SDK_INT >= 24) resources.configuration.locales[0]
+                    else resources.configuration.locale
+                val keyboardLanguages: List<Pair<Any, String>> = SearchKeyboardLayouts.supportedLanguages.map { code ->
+                    val locale = Locale.forLanguageTag(code)
+                    (code as Any) to locale.getDisplayName(displayLocale).replaceFirstChar { it.titlecase(displayLocale) }
+                }
+                choiceRow(Choice("keyboardSecondLanguage", getString(R.string.keyboard_second_language),
+                    getString(R.string.keyboard_second_language_hint), keyboardLanguages))
             }
             Group.STORAGE -> actionRow(getString(R.string.clear_storage), "", getString(R.string.clear_storage_hint)) {
                 choose(getString(R.string.clear_storage_title), listOf(getString(R.string.action_cancel), getString(R.string.action_clear)),

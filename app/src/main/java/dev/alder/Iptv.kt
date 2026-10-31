@@ -8,7 +8,9 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.net.URI
 import java.net.URLEncoder
+import java.security.MessageDigest
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 
 data class IptvChannel(
     val name: String,
@@ -28,8 +30,41 @@ data class IptvPlaylist(val channels: List<IptvChannel>) {
 
 object Iptv {
     private const val PREFS = "iptv"
+    private const val CACHE_TTL_MS = 15 * 60_000L
+    private data class CachedPlaylist(val playlist: IptvPlaylist, val loadedAt: Long)
+    private val cache = ConcurrentHashMap<String, CachedPlaylist>()
+    private val refreshing = ConcurrentHashMap<String, Boolean>()
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
     private fun key(context: Context, name: String) = name + "@" + (Profiles.active(context)?.id ?: "none")
+
+    fun isConfigured(context: Context): Boolean = when (prefs(context).getString(key(context, "playlistType"), "m3u")) {
+        "xtream" -> xtreamServer(context).isNotBlank()
+        "m3u_file" -> prefs(context).getString(key(context, "playlistFileUri"), null).orEmpty().isNotBlank()
+        else -> playlistUrl(context).isNotBlank()
+    }
+
+    fun stableId(channel: IptvChannel): String = MessageDigest.getInstance("SHA-256")
+        .digest(channel.streamUrl.toByteArray(Charsets.UTF_8))
+        .take(10).joinToString("") { "%02x".format(it) }
+
+    private fun cacheKey(context: Context): String {
+        val p = prefs(context)
+        val type = p.getString(key(context, "playlistType"), "m3u").orEmpty()
+        val material = when (type) {
+            "xtream" -> listOf(xtreamServer(context), p.getString(key(context, "xtreamUsername"), "").orEmpty(),
+                SecureStorage.decrypt(p.getString(key(context, "xtreamPassword"), "").orEmpty()).orEmpty()).joinToString("|")
+            "m3u_file" -> p.getString(key(context, "playlistFileUri"), "").orEmpty()
+            else -> playlistUrl(context)
+        }
+        val digest = MessageDigest.getInstance("SHA-256").digest(material.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
+        return (Profiles.active(context)?.id ?: "none") + "|" + type + "|" + digest
+    }
+
+    fun invalidateCache(context: Context) {
+        val profileId = Profiles.active(context)?.id ?: "none"
+        cache.keys.toList().filter { it.startsWith(profileId + "|") }.forEach(cache::remove)
+    }
 
     fun playlistUrl(context: Context): String {
         if (prefs(context).getString(key(context, "playlistType"), "m3u") == "m3u_file") return ""
@@ -52,7 +87,7 @@ object Iptv {
         }
     }
 
-    fun setPlaylistUrl(context: Context, value: String) =
+    fun setPlaylistUrl(context: Context, value: String) {
         prefs(context).edit().apply {
             val url = value.trim()
             if (url.isBlank()) remove(key(context, "playlistUrl")) else putString(key(context, "playlistUrl"), SecureStorage.encrypt(url))
@@ -63,6 +98,8 @@ object Iptv {
             remove(key(context, "playlistFileUri"))
             remove(key(context, "playlistFileName"))
         }.apply()
+        invalidateCache(context)
+    }
 
     fun setPlaylistFile(context: Context, uri: Uri) {
         val name = runCatching {
@@ -78,6 +115,7 @@ object Iptv {
             .remove(key(context, "xtreamUsername"))
             .remove(key(context, "xtreamPassword"))
             .apply()
+        invalidateCache(context)
     }
 
     fun playlistPickerIntent(): Intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
@@ -98,6 +136,7 @@ object Iptv {
             .putString(key(context, "xtreamPassword"), SecureStorage.encrypt(password))
             .remove(key(context, "playlistFileUri")).remove(key(context, "playlistFileName"))
             .remove(key(context, "playlistUrl")).apply()
+        invalidateCache(context)
     }
 
     fun forgetProfile(context: Context, profileId: String) {
@@ -105,6 +144,7 @@ object Iptv {
             listOf("playlistUrl", "playlistType", "playlistFileUri", "playlistFileName", "xtreamServer", "xtreamUsername", "xtreamPassword")
                 .forEach { remove(it + "@" + profileId) }
         }.apply()
+        cache.keys.toList().filter { it.startsWith(profileId + "|") }.forEach(cache::remove)
     }
 
     fun parseM3u(content: String): IptvPlaylist {
@@ -150,7 +190,31 @@ object Iptv {
         return IptvPlaylist(channels.distinctBy { it.streamUrl })
     }
 
-    fun load(context: Context): IptvPlaylist {
+    fun load(context: Context, forceRefresh: Boolean = false): IptvPlaylist {
+        val app = context.applicationContext
+        val cacheKey = cacheKey(app)
+        val cached = cache[cacheKey]
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (!forceRefresh && cached != null) {
+            if (now - cached.loadedAt < CACHE_TTL_MS) return cached.playlist
+            if (refreshing.putIfAbsent(cacheKey, true) == null) Screen.pool.execute {
+                try {
+                    val fresh = loadUncached(app)
+                    cache[cacheKey] = CachedPlaylist(fresh, android.os.SystemClock.elapsedRealtime())
+                } catch (_: Throwable) {
+                    // Keep the last good channel list; a later visit can retry the refresh.
+                } finally {
+                    refreshing.remove(cacheKey)
+                }
+            }
+            return cached.playlist
+        }
+        val fresh = loadUncached(app)
+        cache[cacheKey] = CachedPlaylist(fresh, android.os.SystemClock.elapsedRealtime())
+        return fresh
+    }
+
+    private fun loadUncached(context: Context): IptvPlaylist {
         val p = prefs(context)
         if (p.getString(key(context, "playlistType"), "m3u") == "xtream") {
             val server = p.getString(key(context, "xtreamServer"), "").orEmpty()

@@ -40,6 +40,15 @@ https://stream.example/protected
     }
 
     @Test
+    fun channelIdsAreStableAndDistinctForDifferentStreams() {
+        val first = IptvChannel("News", "https://stream.example/news")
+        val same = IptvChannel("Renamed News", "https://stream.example/news")
+        val other = IptvChannel("News", "https://stream.example/other")
+        assertEquals(Iptv.stableId(first), Iptv.stableId(same))
+        assertTrue(Iptv.stableId(first) != Iptv.stableId(other))
+    }
+
+    @Test
     fun skipsInvalidAndDuplicateStreamUrls() {
         val playlist = Iptv.parseM3u(
             """#EXTM3U
