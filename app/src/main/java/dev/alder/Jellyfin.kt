@@ -23,7 +23,15 @@ data class JellyfinItem(
     val seriesName: String? = null, val seriesId: String? = null
 )
 data class JellyfinSubtitle(val url: String, val language: String, val label: String, val mimeType: String, val isDefault: Boolean)
-data class JellyfinPlayback(val itemId: String, val mediaSourceId: String?, val playSessionId: String?, val streamUrl: String, val directPlay: Boolean, val subtitles: List<JellyfinSubtitle> = emptyList())
+internal fun jellyfinPlayMethod(directPlay: Boolean, directStream: Boolean) =
+    when { directPlay -> "DirectPlay"; directStream -> "DirectStream"; else -> "Transcode" }
+
+data class JellyfinPlayback(
+    val itemId: String, val mediaSourceId: String?, val playSessionId: String?, val streamUrl: String,
+    val directPlay: Boolean, val subtitles: List<JellyfinSubtitle> = emptyList(), val directStream: Boolean = false
+) {
+    val playMethod: String get() = jellyfinPlayMethod(directPlay, directStream)
+}
 class JellyfinException(message: String, val statusCode: Int? = null) : java.io.IOException(message)
 
 /**
@@ -398,20 +406,23 @@ object Jellyfin {
                 ("Accept" to "application/json")))
         val sources = response.optJSONArray("MediaSources") ?: JSONArray()
         if (sources.length() == 0) throw JellyfinException("Jellyfin did not provide a playable media source.")
-        val source = (0 until sources.length()).map { sources.getJSONObject(it) }
-            .firstOrNull { it.optBoolean("SupportsDirectPlay", true) || it.optBoolean("SupportsDirectStream") }
-            ?: sources.getJSONObject(0)
+        val candidates = (0 until sources.length()).map { sources.getJSONObject(it) }
+        val source = candidates.firstOrNull { it.optBoolean("SupportsDirectPlay") }
+            ?: candidates.firstOrNull { it.optBoolean("SupportsDirectStream") }
+            ?: candidates.first()
         val sourceId = source.optString("Id").takeIf { it.isNotBlank() }
         val session = response.optString("PlaySessionId").takeIf { it.isNotBlank() }
-        val direct = source.optBoolean("SupportsDirectPlay", true) || source.optBoolean("SupportsDirectStream")
+        val directPlay = source.optBoolean("SupportsDirectPlay")
+        val directStream = !directPlay && source.optBoolean("SupportsDirectStream")
         val transcodePath = source.optString("TranscodingUrl").takeIf { it.isNotBlank() }
             ?: response.optString("TranscodingUrl").takeIf { it.isNotBlank() }
-        val stream = if (!direct && transcodePath != null) {
+        // Direct Stream still needs Jellyfin to remux the container; only Direct Play serves the source file as-is.
+        val stream = if (!directPlay && transcodePath != null) {
             val url = if (transcodePath.startsWith("http", true)) transcodePath
                 else account.serverUrl + "/" + transcodePath.trimStart('/')
             withStreamAuthorization(url, account)
         } else buildString {
-            append(account.serverUrl).append("/Videos/").append(encode(itemId)).append("/stream?Static=").append(direct)
+            append(account.serverUrl).append("/Videos/").append(encode(itemId)).append("/stream?Static=").append(directPlay)
             if (sourceId != null) append("&MediaSourceId=").append(encode(sourceId))
             if (session != null) append("&PlaySessionId=").append(encode(session))
             if (!account.useModernAuthorization) append("&api_key=").append(encode(account.accessToken))
@@ -445,12 +456,17 @@ object Jellyfin {
                 JellyfinSubtitle(url, language, label, mime, track.optBoolean("IsDefault"))
             }
         }.orEmpty()
-        return JellyfinPlayback(itemId, sourceId, session, stream, direct, subtitles)
+        return JellyfinPlayback(itemId, sourceId, session, stream, directPlay, subtitles, directStream)
     }
 
-    fun reportStarted(context: Context, itemId: String, mediaSourceId: String?, playSessionId: String?, directPlay: Boolean, positionTicks: Long = 0L) {
+    fun reportStarted(context: Context, itemId: String, mediaSourceId: String?, playSessionId: String?, directPlay: Boolean, positionTicks: Long = 0L) =
+        reportStarted(context, itemId, mediaSourceId, playSessionId,
+            if (directPlay) "DirectPlay" else "Transcode", positionTicks)
+
+    fun reportStarted(context: Context, itemId: String, mediaSourceId: String?, playSessionId: String?, playMethod: String, positionTicks: Long = 0L) {
         val account = account(context) ?: return
-        val body = JSONObject().put("ItemId", itemId).put("PlayMethod", if (directPlay) "DirectPlay" else "Transcode")
+        require(playMethod in setOf("DirectPlay", "DirectStream", "Transcode")) { "Invalid Jellyfin playback method." }
+        val body = JSONObject().put("ItemId", itemId).put("PlayMethod", playMethod)
             .put("CanSeek", true).put("IsPaused", false).put("PositionTicks", positionTicks.coerceAtLeast(0L))
         mediaSourceId?.let { body.put("MediaSourceId", it) }
         playSessionId?.let { body.put("PlaySessionId", it) }

@@ -175,12 +175,12 @@ class ProviderPlayerActivity : Screen() {
                 playbackStartPending = true
                 val mediaSourceId = playback.mediaSourceId
                 val playSessionId = playback.playSessionId
-                val directPlay = playback.directPlay
+                val playMethod = playback.playMethod
                 val positionTicks = startAtMs * 10_000L
                 reportExecutor.execute {
                     val started = runCatching {
                         Jellyfin.reportStarted(applicationContext, itemId, mediaSourceId,
-                            playSessionId, directPlay, positionTicks)
+                            playSessionId, playMethod, positionTicks)
                     }
                     main.post {
                         playbackStartPending = false
