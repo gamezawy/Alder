@@ -196,6 +196,7 @@ class ProviderPlayerActivity : Screen() {
                         } else {
                             // Playback itself remains usable if the server's session-report endpoint is unavailable.
                             pendingStopTicks = null
+                            if (activityStopped) Jellyfin.playbackStopFinished(applicationContext)
                             reportExecutor.shutdown()
                         }
                     }
@@ -565,6 +566,7 @@ class ProviderPlayerActivity : Screen() {
     private fun reportStoppedNow(itemId: String, ticks: Long, sessionId: String?) {
         reportExecutor.execute {
             runCatching { Jellyfin.reportStopped(applicationContext, itemId, ticks, sessionId) }
+            Jellyfin.playbackStopFinished(applicationContext)
             reportExecutor.shutdown()
         }
     }
@@ -576,13 +578,16 @@ class ProviderPlayerActivity : Screen() {
         val exo = player
         if (id != null && exo != null && !stoppedReported) {
             stoppedReported = true
-            Jellyfin.invalidatePlaybackCache(applicationContext)
+            Jellyfin.playbackStopPending()
             val ticks = exo.currentPosition.coerceAtLeast(0L) * 10_000L
             when {
                 playbackStarted -> reportStoppedNow(id, ticks, jellyfinPlaySessionId)
                 playbackStartPending -> pendingStopTicks = ticks
                 // If PlaybackInfo or Playing never succeeded, don't send a Stopped event without a session.
-                else -> reportExecutor.shutdown()
+                else -> {
+                    Jellyfin.playbackStopFinished(applicationContext)
+                    reportExecutor.shutdown()
+                }
             }
         } else reportExecutor.shutdown()
         if (::playerView.isInitialized) playerView.player = null

@@ -926,6 +926,9 @@ class MainActivity : Screen() {
     }
 
     private fun loadJellyfinShelves(p: Page): List<JellyfinShelf> {
+        // The player reports Stopped asynchronously. Wait here (off the UI thread) so Continue Watching
+        // cannot race that event and cache the previous resume position again.
+        Jellyfin.awaitPlaybackStop()
         if (Jellyfin.account(applicationContext) == null) return emptyList()
         if (p == Page.LIBRARY) {
             // Let refresh failures propagate: appendJellyfinRows keeps the last good snapshot on screen.

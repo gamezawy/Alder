@@ -58,6 +58,8 @@ object Jellyfin {
     private val responseCache = ConcurrentHashMap<String, CachedResponse>()
     private val refreshingKeys = ConcurrentHashMap.newKeySet<String>()
     private val cacheEpochs = ConcurrentHashMap<String, java.util.concurrent.atomic.AtomicLong>()
+    private val playbackStopLock = Any()
+    private var playbackStopSignal: java.util.concurrent.CountDownLatch? = null
 
     private fun cacheEpoch(profileId: String) =
         cacheEpochs.computeIfAbsent(profileId) { java.util.concurrent.atomic.AtomicLong() }
@@ -261,6 +263,28 @@ object Jellyfin {
         val profileId = Profiles.active(context)?.id ?: "none"
         cacheEpoch(profileId).incrementAndGet()
         responseCache.keys.removeIf { it.startsWith(profileId + "|") }
+    }
+
+    /** Signal that a Jellyfin stop report must finish before Home refreshes resume data. */
+    fun playbackStopPending() {
+        synchronized(playbackStopLock) {
+            if (playbackStopSignal == null) playbackStopSignal = java.util.concurrent.CountDownLatch(1)
+        }
+    }
+
+    /** Invalidate resume data only after the server has received the stop event, then release waiting refreshes. */
+    fun playbackStopFinished(context: Context) {
+        invalidatePlaybackCache(context)
+        val signal = synchronized(playbackStopLock) {
+            playbackStopSignal.also { playbackStopSignal = null }
+        }
+        signal?.countDown()
+    }
+
+    /** Called from a background task before loading shelves after returning from the player. */
+    fun awaitPlaybackStop() {
+        val signal = synchronized(playbackStopLock) { playbackStopSignal }
+        runCatching { signal?.await(45, java.util.concurrent.TimeUnit.SECONDS) }
     }
 
     /** Refresh only progress-dependent shelves after playback; keep library, details and favorites cached. */
