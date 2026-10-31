@@ -28,6 +28,7 @@ import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.CaptionStyleCompat
 import androidx.media3.ui.PlayerView
 import java.util.Locale
+import java.util.concurrent.Executors
 
 /**
  * Jellyfin playback using Alder's glass/tungsten visual language and the same core viewing controls
@@ -53,6 +54,8 @@ class ProviderPlayerActivity : Screen() {
     private var playbackStarted = false
     private var pendingStopTicks: Long? = null
     private var stoppedReported = false
+    private var activityStopped = false
+    private val reportExecutor = Executors.newSingleThreadExecutor()
     private var controlsVisible = true
     private var scrubbing = false
     private var resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
@@ -68,13 +71,13 @@ class ProviderPlayerActivity : Screen() {
     private val progressReporter = object : Runnable {
         override fun run() {
             val id = jellyfinItemId ?: return
-            if (!playbackStarted) return
+            if (!playbackStarted || activityStopped) return
             val exo = player ?: return
             // Read ExoPlayer state on its application thread before dispatching network I/O.
             val ticks = exo.currentPosition.coerceAtLeast(0L) * 10_000L
             val paused = !exo.isPlaying
             val sessionId = jellyfinPlaySessionId
-            Screen.pool.execute {
+            reportExecutor.execute {
                 runCatching { Jellyfin.reportPlayback(applicationContext, id, ticks, paused, sessionId) }
             }
             progressHandler.postDelayed(this, 15_000L)
@@ -161,7 +164,7 @@ class ProviderPlayerActivity : Screen() {
 
         if (itemId != null) {
             background({ Jellyfin.playback(applicationContext, itemId) }) { result ->
-                if (isFinishing || isDestroyed) return@background
+                if (isFinishing || isDestroyed || activityStopped) return@background
                 val playback = result.getOrElse {
                     android.widget.Toast.makeText(this, it.message ?: getString(R.string.load_failed),
                         android.widget.Toast.LENGTH_LONG).show()
@@ -174,7 +177,7 @@ class ProviderPlayerActivity : Screen() {
                 val playSessionId = playback.playSessionId
                 val directPlay = playback.directPlay
                 val positionTicks = startAtMs * 10_000L
-                Screen.pool.execute {
+                reportExecutor.execute {
                     val started = runCatching {
                         Jellyfin.reportStarted(applicationContext, itemId, mediaSourceId,
                             playSessionId, directPlay, positionTicks)
@@ -187,12 +190,13 @@ class ProviderPlayerActivity : Screen() {
                             if (stopTicks != null) {
                                 pendingStopTicks = null
                                 reportStoppedNow(itemId, stopTicks, playSessionId)
-                            } else if (!isFinishing && !isDestroyed) {
+                            } else if (!activityStopped && !isFinishing && !isDestroyed) {
                                 progressHandler.postDelayed(progressReporter, 15_000L)
                             }
                         } else {
                             // Playback itself remains usable if the server's session-report endpoint is unavailable.
                             pendingStopTicks = null
+                            reportExecutor.shutdown()
                         }
                     }
                 }
@@ -559,12 +563,14 @@ class ProviderPlayerActivity : Screen() {
     }
 
     private fun reportStoppedNow(itemId: String, ticks: Long, sessionId: String?) {
-        Screen.pool.execute {
+        reportExecutor.execute {
             runCatching { Jellyfin.reportStopped(applicationContext, itemId, ticks, sessionId) }
+            reportExecutor.shutdown()
         }
     }
 
     override fun onStop() {
+        activityStopped = true
         progressHandler.removeCallbacksAndMessages(null)
         val id = jellyfinItemId
         val exo = player
@@ -576,9 +582,10 @@ class ProviderPlayerActivity : Screen() {
                 playbackStarted -> reportStoppedNow(id, ticks, jellyfinPlaySessionId)
                 playbackStartPending -> pendingStopTicks = ticks
                 // If PlaybackInfo or Playing never succeeded, don't send a Stopped event without a session.
+                else -> reportExecutor.shutdown()
             }
-        }
-        playerView.player = null
+        } else reportExecutor.shutdown()
+        if (::playerView.isInitialized) playerView.player = null
         player?.release()
         player = null
         super.onStop()
